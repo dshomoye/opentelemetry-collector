@@ -32,15 +32,15 @@ import (
 )
 
 func TestNewExporter_err_version(t *testing.T) {
-	c := Config{ProtocolVersion: "0.0.0", Encoding: defaultEncoding}
-	exp, err := newExporter(c, component.ExporterCreateParams{}, defaultMarshallers())
+	c := Config{ProtocolVersion: "0.0.0", TracesEncoding: defaultEncoding}
+	exp, err := newTracesExporter(c, component.ExporterCreateParams{}, tracesMarshallers())
 	assert.Error(t, err)
 	assert.Nil(t, exp)
 }
 
 func TestNewExporter_err_encoding(t *testing.T) {
-	c := Config{Encoding: "foo"}
-	exp, err := newExporter(c, component.ExporterCreateParams{}, defaultMarshallers())
+	c := Config{TracesEncoding: "foo"}
+	exp, err := newTracesExporter(c, component.ExporterCreateParams{}, tracesMarshallers())
 	assert.EqualError(t, err, errUnrecognizedEncoding.Error())
 	assert.Nil(t, exp)
 }
@@ -55,12 +55,12 @@ func TestNewExporter_err_auth_type(t *testing.T) {
 				},
 			},
 		},
-		Encoding: defaultEncoding,
+		TracesEncoding: defaultEncoding,
 		Metadata: Metadata{
 			Full: false,
 		},
 	}
-	exp, err := newExporter(c, component.ExporterCreateParams{}, defaultMarshallers())
+	exp, err := newTracesExporter(c, component.ExporterCreateParams{}, tracesMarshallers())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to load TLS config")
 	assert.Nil(t, exp)
@@ -71,9 +71,9 @@ func TestTraceDataPusher(t *testing.T) {
 	producer := mocks.NewSyncProducer(t, c)
 	producer.ExpectSendMessageAndSucceed()
 
-	p := kafkaProducer{
+	p := kafkaTracesProducer{
 		producer:   producer,
-		marshaller: &otlpProtoMarshaller{},
+		marshaller: &otlpTracesMarshaller{},
 	}
 	t.Cleanup(func() {
 		require.NoError(t, p.Close(context.Background()))
@@ -89,9 +89,9 @@ func TestTraceDataPusher_err(t *testing.T) {
 	expErr := fmt.Errorf("failed to send")
 	producer.ExpectSendMessageAndFail(expErr)
 
-	p := kafkaProducer{
+	p := kafkaTracesProducer{
 		producer:   producer,
-		marshaller: &otlpProtoMarshaller{},
+		marshaller: &otlpTracesMarshaller{},
 		logger:     zap.NewNop(),
 	}
 	t.Cleanup(func() {
@@ -105,7 +105,7 @@ func TestTraceDataPusher_err(t *testing.T) {
 
 func TestTraceDataPusher_marshall_error(t *testing.T) {
 	expErr := fmt.Errorf("failed to marshall")
-	p := kafkaProducer{
+	p := kafkaTracesProducer{
 		marshaller: &errorMarshaller{err: expErr},
 		logger:     zap.NewNop(),
 	}
@@ -120,7 +120,7 @@ type errorMarshaller struct {
 	err error
 }
 
-var _ Marshaller = (*errorMarshaller)(nil)
+var _ TracesMarshaller = (*errorMarshaller)(nil)
 
 func (e errorMarshaller) Marshal(traces pdata.Traces) ([]Message, error) {
 	return nil, e.err

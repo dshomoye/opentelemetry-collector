@@ -24,10 +24,11 @@ import (
 )
 
 const (
-	typeStr         = "kafka"
-	defaultTopic    = "otlp_spans"
-	defaultEncoding = "otlp_proto"
-	defaultBroker   = "localhost:9092"
+	typeStr                = "kafka"
+	defaultTopic           = "otlp_spans"
+	defaultEncoding        = "otlp_proto"
+	defaultBroker          = "localhost:9092"
+	defaultMetricsEncoding = "otlp_proto"
 	// default from sarama.NewConfig()
 	defaultMetadataRetryMax = 3
 	// default from sarama.NewConfig()
@@ -40,7 +41,7 @@ const (
 type FactoryOption func(factory *kafkaExporterFactory)
 
 // WithAddMarshallers adds marshallers.
-func WithAddMarshallers(encodingMarshaller map[string]Marshaller) FactoryOption {
+func WithAddMarshallers(encodingMarshaller map[string]TracesMarshaller) FactoryOption {
 	return func(factory *kafkaExporterFactory) {
 		for encoding, marshaller := range encodingMarshaller {
 			factory.marshallers[encoding] = marshaller
@@ -51,7 +52,8 @@ func WithAddMarshallers(encodingMarshaller map[string]Marshaller) FactoryOption 
 // NewFactory creates Kafka exporter factory.
 func NewFactory(options ...FactoryOption) component.ExporterFactory {
 	f := &kafkaExporterFactory{
-		marshallers: defaultMarshallers(),
+		marshallers:        tracesMarshallers(),
+		metricsmarshallers: metricsMarshallers(),
 	}
 	for _, o := range options {
 		o(f)
@@ -59,7 +61,8 @@ func NewFactory(options ...FactoryOption) component.ExporterFactory {
 	return exporterhelper.NewFactory(
 		typeStr,
 		createDefaultConfig,
-		exporterhelper.WithTraces(f.createTraceExporter))
+		exporterhelper.WithTraces(f.createTraceExporter),
+		exporterhelper.WithMetrics(f.createMetricsExporter))
 }
 
 func createDefaultConfig() configmodels.Exporter {
@@ -76,7 +79,8 @@ func createDefaultConfig() configmodels.Exporter {
 		QueueSettings:   qs,
 		Brokers:         []string{defaultBroker},
 		Topic:           defaultTopic,
-		Encoding:        defaultEncoding,
+		TracesEncoding:        defaultEncoding,
+		MetricsEncoding: defaultMetricsEncoding,
 		Metadata: Metadata{
 			Full: defaultMetadataFull,
 			Retry: MetadataRetry{
@@ -88,7 +92,8 @@ func createDefaultConfig() configmodels.Exporter {
 }
 
 type kafkaExporterFactory struct {
-	marshallers map[string]Marshaller
+	marshallers        map[string]TracesMarshaller
+	metricsmarshallers map[string]MetricsMarshaller
 }
 
 func (f *kafkaExporterFactory) createTraceExporter(
@@ -97,7 +102,7 @@ func (f *kafkaExporterFactory) createTraceExporter(
 	cfg configmodels.Exporter,
 ) (component.TraceExporter, error) {
 	oCfg := cfg.(*Config)
-	exp, err := newExporter(*oCfg, params, f.marshallers)
+	exp, err := newTracesExporter(*oCfg, params, f.marshallers)
 	if err != nil {
 		return nil, err
 	}
@@ -106,6 +111,25 @@ func (f *kafkaExporterFactory) createTraceExporter(
 		exp.traceDataPusher,
 		// Disable exporterhelper Timeout, because we cannot pass a Context to the Producer,
 		// and will rely on the sarama Producer Timeout logic.
+		exporterhelper.WithTimeout(exporterhelper.TimeoutSettings{Timeout: 0}),
+		exporterhelper.WithRetry(oCfg.RetrySettings),
+		exporterhelper.WithQueue(oCfg.QueueSettings),
+		exporterhelper.WithShutdown(exp.Close))
+}
+
+func (f *kafkaExporterFactory) createMetricsExporter(
+	_ context.Context,
+	params component.ExporterCreateParams,
+	cfg configmodels.Exporter,
+) (component.MetricsExporter, error) {
+	oCfg := cfg.(*Config)
+	exp, err := newMetricsExporter(*oCfg, params, f.metricsmarshallers)
+	if err != nil {
+		return nil, err
+	}
+	return exporterhelper.NewMetricsExporter(
+		cfg,
+		exp.metricsDataPusher,
 		exporterhelper.WithTimeout(exporterhelper.TimeoutSettings{Timeout: 0}),
 		exporterhelper.WithRetry(oCfg.RetrySettings),
 		exporterhelper.WithQueue(oCfg.QueueSettings),

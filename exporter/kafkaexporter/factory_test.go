@@ -40,7 +40,7 @@ func TestCreateTracesExporter(t *testing.T) {
 	cfg.ProtocolVersion = "2.0.0"
 	// this disables contacting the broker so we can successfully create the exporter
 	cfg.Metadata.Full = false
-	f := kafkaExporterFactory{marshallers: defaultMarshallers()}
+	f := kafkaExporterFactory{marshallers: tracesMarshallers()}
 	r, err := f.createTraceExporter(context.Background(), component.ExporterCreateParams{}, cfg)
 	require.NoError(t, err)
 	assert.NotNil(t, r)
@@ -50,7 +50,7 @@ func TestCreateTracesExporter_err(t *testing.T) {
 	cfg := createDefaultConfig().(*Config)
 	cfg.Brokers = []string{"invalid:9092"}
 	cfg.ProtocolVersion = "2.0.0"
-	f := kafkaExporterFactory{marshallers: defaultMarshallers()}
+	f := kafkaExporterFactory{marshallers: tracesMarshallers()}
 	r, err := f.createTraceExporter(context.Background(), component.ExporterCreateParams{}, cfg)
 	// no available broker
 	require.Error(t, err)
@@ -59,19 +59,19 @@ func TestCreateTracesExporter_err(t *testing.T) {
 
 func TestWithMarshallers(t *testing.T) {
 	cm := &customMarshaller{}
-	f := NewFactory(WithAddMarshallers(map[string]Marshaller{cm.Encoding(): cm}))
+	f := NewFactory(WithAddMarshallers(map[string]TracesMarshaller{cm.Encoding(): cm}))
 	cfg := createDefaultConfig().(*Config)
 	// disable contacting broker
 	cfg.Metadata.Full = false
 
 	t.Run("custom_encoding", func(t *testing.T) {
-		cfg.Encoding = cm.Encoding()
+		cfg.TracesEncoding = cm.Encoding()
 		exporter, err := f.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, cfg)
 		require.NoError(t, err)
 		require.NotNil(t, exporter)
 	})
 	t.Run("default_encoding", func(t *testing.T) {
-		cfg.Encoding = new(otlpProtoMarshaller).Encoding()
+		cfg.TracesEncoding = new(otlpTracesMarshaller).Encoding()
 		exporter, err := f.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, cfg)
 		require.NoError(t, err)
 		assert.NotNil(t, exporter)
@@ -81,7 +81,7 @@ func TestWithMarshallers(t *testing.T) {
 type customMarshaller struct {
 }
 
-var _ Marshaller = (*customMarshaller)(nil)
+var _ TracesMarshaller = (*customMarshaller)(nil)
 
 func (c customMarshaller) Marshal(traces pdata.Traces) ([]Message, error) {
 	panic("implement me")
