@@ -40,11 +40,11 @@ const (
 // FactoryOption applies changes to kafkaExporterFactory.
 type FactoryOption func(factory *kafkaExporterFactory)
 
-// WithAddMarshallers adds marshallers.
+// WithAddMarshallers adds tracesMarshallers.
 func WithAddMarshallers(encodingMarshaller map[string]TracesMarshaller) FactoryOption {
 	return func(factory *kafkaExporterFactory) {
 		for encoding, marshaller := range encodingMarshaller {
-			factory.marshallers[encoding] = marshaller
+			factory.tracesMarshallers[encoding] = marshaller
 		}
 	}
 }
@@ -52,8 +52,8 @@ func WithAddMarshallers(encodingMarshaller map[string]TracesMarshaller) FactoryO
 // NewFactory creates Kafka exporter factory.
 func NewFactory(options ...FactoryOption) component.ExporterFactory {
 	f := &kafkaExporterFactory{
-		marshallers:        tracesMarshallers(),
-		metricsmarshallers: metricsMarshallers(),
+		tracesMarshallers:  tracesMarshallers(),
+		metricsMarshallers: metricsMarshallers(),
 	}
 	for _, o := range options {
 		o(f)
@@ -92,8 +92,8 @@ func createDefaultConfig() configmodels.Exporter {
 }
 
 type kafkaExporterFactory struct {
-	marshallers        map[string]TracesMarshaller
-	metricsmarshallers map[string]MetricsMarshaller
+	tracesMarshallers  map[string]TracesMarshaller
+	metricsMarshallers map[string]MetricsMarshaller
 }
 
 func (f *kafkaExporterFactory) createTraceExporter(
@@ -102,7 +102,7 @@ func (f *kafkaExporterFactory) createTraceExporter(
 	cfg configmodels.Exporter,
 ) (component.TraceExporter, error) {
 	oCfg := cfg.(*Config)
-	exp, err := newTracesExporter(*oCfg, params, f.marshallers)
+	exp, err := newTracesExporter(*oCfg, params, f.tracesMarshallers)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func (f *kafkaExporterFactory) createMetricsExporter(
 	cfg configmodels.Exporter,
 ) (component.MetricsExporter, error) {
 	oCfg := cfg.(*Config)
-	exp, err := newMetricsExporter(*oCfg, params, f.metricsmarshallers)
+	exp, err := newMetricsExporter(*oCfg, params, f.metricsMarshallers)
 	if err != nil {
 		return nil, err
 	}

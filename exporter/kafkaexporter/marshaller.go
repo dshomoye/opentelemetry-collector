@@ -29,7 +29,7 @@ type TracesMarshaller interface {
 
 // MetricsMarshaller marshalls metrics into Message array
 type MetricsMarshaller interface {
-	// Marshal serializes spans into Messages
+	// Marshal serializes metrics into Messages
 	Marshal(metrics pdata.Metrics) ([]Message, error)
 
 	// Encoding returns encoding name
@@ -55,6 +55,7 @@ func tracesMarshallers() map[string]TracesMarshaller {
 	}
 }
 
+// metricsMarshallers returns map of supported encodings and MetricsMarshaller
 func metricsMarshallers() map[string]MetricsMarshaller {
 	otlppb := &otlpMetricsPbMarshaller{}
 	otlpjson := &otlpMetricsJSONMarshaller{}
