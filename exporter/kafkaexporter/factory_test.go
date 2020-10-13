@@ -71,7 +71,7 @@ func TestWithMarshallers(t *testing.T) {
 		require.NotNil(t, exporter)
 	})
 	t.Run("default_encoding", func(t *testing.T) {
-		cfg.TracesEncoding = new(otlpTracesMarshaller).Encoding()
+		cfg.TracesEncoding = new(otlpTracesPbMarshaller).Encoding()
 		exporter, err := f.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, cfg)
 		require.NoError(t, err)
 		assert.NotNil(t, exporter)

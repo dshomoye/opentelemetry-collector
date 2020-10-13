@@ -15,24 +15,67 @@
 package kafkaexporter
 
 import (
+	"bytes"
+
+	"github.com/gogo/protobuf/jsonpb"
 	"go.opentelemetry.io/collector/consumer/pdata"
 	otlpmetric "go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/collector/metrics/v1"
 	otlptrace "go.opentelemetry.io/collector/internal/data/opentelemetry-proto-gen/collector/trace/v1"
 )
 
-type otlpTracesMarshaller struct {
+var jsonpbMarshaller = &jsonpb.Marshaler{}
+
+type otlpTracesPbMarshaller struct {
 }
 
-type otlpMetricsMarshaller struct {
+type otlpMetricsPbMarshaller struct {
 }
 
-var _ TracesMarshaller = (*otlpTracesMarshaller)(nil)
+type otlpMetricsJSONMarshaller struct {
+}
 
-func (m *otlpTracesMarshaller) Encoding() string {
+type otlpTracesJSONMarshaller struct {
+}
+
+var _ TracesMarshaller = (*otlpTracesPbMarshaller)(nil)
+
+func (m *otlpTracesPbMarshaller) Encoding() string {
 	return defaultEncoding
 }
 
-func (m *otlpTracesMarshaller) Marshal(traces pdata.Traces) ([]Message, error) {
+func (m *otlpMetricsJSONMarshaller) Encoding() string {
+	return "otlp_json"
+}
+
+func (m *otlpTracesJSONMarshaller) Encoding() string {
+	return "otlp_json"
+}
+
+func (m *otlpMetricsJSONMarshaller) Marshal(metrics pdata.Metrics) ([]Message, error) {
+	out := new(bytes.Buffer)
+	request := otlpmetric.ExportMetricsServiceRequest{
+		ResourceMetrics: pdata.MetricsToOtlp(metrics),
+	}
+	err := jsonpbMarshaller.Marshal(out, &request)
+	if err != nil {
+		return nil, err
+	}
+	return []Message{{Value: out.Bytes()}}, nil
+}
+
+func (m *otlpTracesJSONMarshaller) Marshal(metrics pdata.Traces) ([]Message, error) {
+	out := new(bytes.Buffer)
+	request := otlptrace.ExportTraceServiceRequest{
+		ResourceSpans: pdata.TracesToOtlp(metrics),
+	}
+	err := jsonpbMarshaller.Marshal(out, &request)
+	if err != nil {
+		return nil, err
+	}
+	return []Message{{Value: out.Bytes()}}, nil
+}
+
+func (m *otlpTracesPbMarshaller) Marshal(traces pdata.Traces) ([]Message, error) {
 	request := otlptrace.ExportTraceServiceRequest{
 		ResourceSpans: pdata.TracesToOtlp(traces),
 	}
@@ -43,11 +86,11 @@ func (m *otlpTracesMarshaller) Marshal(traces pdata.Traces) ([]Message, error) {
 	return []Message{{Value: bts}}, nil
 }
 
-func (m *otlpMetricsMarshaller) Encoding() string {
+func (m *otlpMetricsPbMarshaller) Encoding() string {
 	return defaultMetricsEncoding
 }
 
-func (m *otlpMetricsMarshaller) Marshal(metrics pdata.Metrics) ([]Message, error) {
+func (m *otlpMetricsPbMarshaller) Marshal(metrics pdata.Metrics) ([]Message, error) {
 	request := otlpmetric.ExportMetricsServiceRequest{
 		ResourceMetrics: pdata.MetricsToOtlp(metrics),
 	}

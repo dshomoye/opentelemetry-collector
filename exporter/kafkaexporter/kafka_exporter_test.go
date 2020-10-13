@@ -73,7 +73,7 @@ func TestTraceDataPusher(t *testing.T) {
 
 	p := kafkaTracesProducer{
 		producer:   producer,
-		marshaller: &otlpTracesMarshaller{},
+		marshaller: &otlpTracesPbMarshaller{},
 	}
 	t.Cleanup(func() {
 		require.NoError(t, p.Close(context.Background()))
@@ -91,7 +91,7 @@ func TestTraceDataPusher_err(t *testing.T) {
 
 	p := kafkaTracesProducer{
 		producer:   producer,
-		marshaller: &otlpTracesMarshaller{},
+		marshaller: &otlpTracesPbMarshaller{},
 		logger:     zap.NewNop(),
 	}
 	t.Cleanup(func() {

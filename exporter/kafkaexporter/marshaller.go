@@ -43,19 +43,23 @@ type Message struct {
 
 // tracesMarshallers returns map of supported encodings with TracesMarshaller.
 func tracesMarshallers() map[string]TracesMarshaller {
-	otlp := &otlpTracesMarshaller{}
+	otlppb := &otlpTracesPbMarshaller{}
+	otlpjson := &otlpTracesJSONMarshaller{}
 	jaegerProto := jaegerMarshaller{marshaller: jaegerProtoSpanMarshaller{}}
 	jaegerJSON := jaegerMarshaller{marshaller: newJaegerJSONMarshaller()}
 	return map[string]TracesMarshaller{
-		otlp.Encoding():        otlp,
+		otlppb.Encoding():        otlppb,
 		jaegerProto.Encoding(): jaegerProto,
 		jaegerJSON.Encoding():  jaegerJSON,
+		otlpjson.Encoding(): otlpjson,
 	}
 }
 
 func metricsMarshallers() map[string]MetricsMarshaller {
-	otlp := &otlpMetricsMarshaller{}
+	otlppb := &otlpMetricsPbMarshaller{}
+	otlpjson := &otlpMetricsJSONMarshaller{}
 	return map[string]MetricsMarshaller{
-		otlp.Encoding(): otlp,
+		otlppb.Encoding(): otlppb,
+		otlpjson.Encoding(): otlpjson,
 	}
 }
