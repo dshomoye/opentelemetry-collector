@@ -87,7 +87,7 @@ func (m *otlpTracesPbMarshaller) Marshal(traces pdata.Traces) ([]Message, error)
 }
 
 func (m *otlpMetricsPbMarshaller) Encoding() string {
-	return defaultMetricsEncoding
+	return defaultEncoding
 }
 
 func (m *otlpMetricsPbMarshaller) Marshal(metrics pdata.Metrics) ([]Message, error) {
