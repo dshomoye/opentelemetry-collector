@@ -32,7 +32,7 @@ type Config struct {
 	Brokers []string `mapstructure:"brokers"`
 	// Kafka protocol version
 	ProtocolVersion string `mapstructure:"protocol_version"`
-	// The name of the kafka topic to export to (default "otlp_spans")
+	// The name of the kafka topic to export to (default "otlp")
 	Topic string `mapstructure:"topic"`
 	// Encoding of the messages (default "otlp_proto")
 	TracesEncoding string `mapstructure:"traces_encoding"`

@@ -25,7 +25,7 @@ import (
 
 const (
 	typeStr                = "kafka"
-	defaultTopic           = "otlp_spans"
+	defaultTopic           = "otlp"
 	defaultEncoding        = "otlp_proto"
 	defaultBroker          = "localhost:9092"
 	// default from sarama.NewConfig()
