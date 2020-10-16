@@ -62,7 +62,6 @@ func TestOTLPTracesJSONMarshaller(t *testing.T) {
 	assert.Equal(t, []Message{{Value: expected.Bytes()}}, messages)
 }
 
-
 func TestOTLPMetricsJSONMarshaller(t *testing.T) {
 	md := testdata.GenerateMetricsTwoMetrics()
 	request := &otlpmetric.ExportMetricsServiceRequest{

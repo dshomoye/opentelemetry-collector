@@ -76,8 +76,7 @@ func TestNewExporter_err_auth_type(t *testing.T) {
 				},
 			},
 		},
-		TracesEncoding: defaultEncoding,
-		MetricsEncoding: defaultEncoding,
+		Encoding: defaultEncoding,
 		Metadata: Metadata{
 			Full: false,
 		},

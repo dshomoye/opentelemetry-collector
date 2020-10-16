@@ -46,11 +46,12 @@ func tracesMarshallers() map[string]TracesMarshaller {
 	otlppb := &otlpTracesPbMarshaller{}
 	jaegerProto := jaegerMarshaller{marshaller: jaegerProtoSpanMarshaller{}}
 	jaegerJSON := jaegerMarshaller{marshaller: newJaegerJSONMarshaller()}
+	otlpjson := &otlpTracesJSONMarshaller{}
 	return map[string]TracesMarshaller{
 		otlppb.Encoding():      otlppb,
 		jaegerProto.Encoding(): jaegerProto,
 		jaegerJSON.Encoding():  jaegerJSON,
-		otlpjson.Encoding(): otlpjson,
+		otlpjson.Encoding():    otlpjson,
 	}
 }
 
@@ -59,7 +60,7 @@ func metricsMarshallers() map[string]MetricsMarshaller {
 	otlppb := &otlpMetricsPbMarshaller{}
 	otlpjson := &otlpMetricsJSONMarshaller{}
 	return map[string]MetricsMarshaller{
-		otlppb.Encoding(): otlppb,
+		otlppb.Encoding():   otlppb,
 		otlpjson.Encoding(): otlpjson,
 	}
 }
