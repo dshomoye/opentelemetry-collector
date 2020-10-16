@@ -58,7 +58,6 @@ func TestCreateMetricsExport(t *testing.T) {
 	assert.NotNil(t, mr)
 }
 
-
 func TestCreateTracesExporter_err(t *testing.T) {
 	cfg := createDefaultConfig().(*Config)
 	cfg.Brokers = []string{"invalid:9092"}
@@ -94,7 +93,7 @@ func TestWithMarshallers(t *testing.T) {
 		require.NotNil(t, exporter)
 	})
 	t.Run("default_encoding", func(t *testing.T) {
-		cfg.TracesEncoding = new(otlpTracesPbMarshaller).Encoding()
+		cfg.Encoding = new(otlpTracesPbMarshaller).Encoding()
 		exporter, err := f.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, cfg)
 		require.NoError(t, err)
 		assert.NotNil(t, exporter)

@@ -27,7 +27,7 @@ type TracesMarshaller interface {
 	Encoding() string
 }
 
-// MetricsMarshaller marshalls metrics into Message array
+// MetricsMarshaller marshals metrics into Message array
 type MetricsMarshaller interface {
 	// Marshal serializes metrics into Messages
 	Marshal(metrics pdata.Metrics) ([]Message, error)
@@ -44,11 +44,10 @@ type Message struct {
 // tracesMarshallers returns map of supported encodings with TracesMarshaller.
 func tracesMarshallers() map[string]TracesMarshaller {
 	otlppb := &otlpTracesPbMarshaller{}
-	otlpjson := &otlpTracesJSONMarshaller{}
 	jaegerProto := jaegerMarshaller{marshaller: jaegerProtoSpanMarshaller{}}
 	jaegerJSON := jaegerMarshaller{marshaller: newJaegerJSONMarshaller()}
 	return map[string]TracesMarshaller{
-		otlppb.Encoding():        otlppb,
+		otlppb.Encoding():      otlppb,
 		jaegerProto.Encoding(): jaegerProto,
 		jaegerJSON.Encoding():  jaegerJSON,
 		otlpjson.Encoding(): otlpjson,

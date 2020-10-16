@@ -32,28 +32,35 @@ import (
 )
 
 func TestNewExporter_err_version(t *testing.T) {
-	c := Config{ProtocolVersion: "0.0.0", TracesEncoding: defaultEncoding, MetricsEncoding: defaultEncoding}
+	c := Config{ProtocolVersion: "0.0.0", Encoding: defaultEncoding}
 	texp, err := newTracesExporter(c, component.ExporterCreateParams{}, tracesMarshallers())
 	assert.Error(t, err)
 	assert.Nil(t, texp)
 }
 
 func TestNewExporter_err_encoding(t *testing.T) {
-	c := Config{TracesEncoding: "foo", MetricsEncoding: "bar"}
+	c := Config{Encoding: "foo"}
 	texp, err := newTracesExporter(c, component.ExporterCreateParams{}, tracesMarshallers())
 	assert.EqualError(t, err, errUnrecognizedEncoding.Error())
 	assert.Nil(t, texp)
 }
 
 func TestNewMetricsExporter_err_version(t *testing.T) {
-	c := Config{ProtocolVersion: "0.0.0", TracesEncoding: defaultEncoding, MetricsEncoding: defaultEncoding}
+	c := Config{ProtocolVersion: "0.0.0", Encoding: defaultEncoding}
 	mexp, err := newMetricsExporter(c, component.ExporterCreateParams{}, metricsMarshallers())
 	assert.Error(t, err)
 	assert.Nil(t, mexp)
 }
 
 func TestNewMetricsExporter_err_encoding(t *testing.T) {
-	c := Config{TracesEncoding: "foo", MetricsEncoding: "bar"}
+	c := Config{Encoding: "bar"}
+	mexp, err := newMetricsExporter(c, component.ExporterCreateParams{}, metricsMarshallers())
+	assert.EqualError(t, err, errUnrecognizedEncoding.Error())
+	assert.Nil(t, mexp)
+}
+
+func TestNewMetricsExporter_err_traces_encoding(t *testing.T) {
+	c := Config{Encoding: "jaeger_proto"}
 	mexp, err := newMetricsExporter(c, component.ExporterCreateParams{}, metricsMarshallers())
 	assert.EqualError(t, err, errUnrecognizedEncoding.Error())
 	assert.Nil(t, mexp)
@@ -141,8 +148,8 @@ func TestMetricsDataPusher(t *testing.T) {
 	producer.ExpectSendMessageAndSucceed()
 
 	p := kafkaMetricsProducer{
-		producer: producer,
-		marshaller: &otlpMetricsJSONMarshaller{},
+		producer:   producer,
+		marshaller: &otlpMetricsPbMarshaller{},
 	}
 	t.Cleanup(func() {
 		require.NoError(t, p.Close(context.Background()))
@@ -159,9 +166,9 @@ func TestMetricsDataPusher_err(t *testing.T) {
 	producer.ExpectSendMessageAndFail(expErr)
 
 	p := kafkaMetricsProducer{
-		producer: producer,
+		producer:   producer,
 		marshaller: &otlpMetricsPbMarshaller{},
-		logger: zap.NewNop(),
+		logger:     zap.NewNop(),
 	}
 	t.Cleanup(func() {
 		require.NoError(t, p.Close(context.Background()))
@@ -176,7 +183,7 @@ func TestMetricsDataPusher_marshal_error(t *testing.T) {
 	expErr := fmt.Errorf("failed to marshall")
 	p := kafkaMetricsProducer{
 		marshaller: &metricsErrorMarshaller{err: expErr},
-		logger: zap.NewNop(),
+		logger:     zap.NewNop(),
 	}
 	md := testdata.GenerateMetricsTwoMetrics()
 	dropped, err := p.metricsDataPusher(context.Background(), md)
