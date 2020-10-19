@@ -22,33 +22,45 @@ import (
 	"go.opentelemetry.io/collector/consumer/pdata"
 )
 
-// JsonValueList represents the format used by collectd's JSON export.
-type JsonValueList struct {
-	Values         []json.Number          `json:"values"`
-	DSTypes        []string               `json:"dstypes"`
-	DSNames        []string               `json:"dsnames,omitempty"`
-	Time           json.Number            `json:"time"`
-	Interval       json.Number            `json:"interval,omitempty"`
-	Host           string                 `json:"host,omitempty"`
-	Plugin         string                 `json:"plugin"`
-	PluginInstance string                 `json:"plugin_instance,omitempty"`
-	Type           string                 `json:"type"`
-	TypeInstance   string                 `json:"type_instance,omitempty"`
-	Meta           map[string]interface{} `json:"meta"`
+// SIMMetric is a JSON interface closely matching SIM metrics structure
+// ref: https://dev.splunk.com/observability/docs/apibasics/data_model_basics
+type SIMMetric struct {
+	MetricName string                 `json:"metric_name"`
+	Value      json.Number            `json:"value"`
+	MetricType string                 `json:"metric_type"`
+	Timestamp  json.Number            `json:"timestamp"`
+	Dimensions map[string]interface{} `json:"dimensions"`
 }
 
 type metricDP struct {
-	values  []json.Number
-	dstypes []string
-	dsnames []string
-	time    json.Number
+	time       json.Number
+	labels     map[string]string
+	metricType string
+	value      json.Number
 }
 
-// MetricsToValueLists encodes Metrics into []JsonValueList
-// each value list will contain a host key if the underlying resource for a metric has a "host.hostname" attribute
-func MetricsToValueLists(md pdata.Metrics) ([]JsonValueList, int) {
+type collectdJSONMarshaller struct {}
+
+// Encoding returns config encoding for collectd marshaller
+func (m *collectdJSONMarshaller) Encoding() string {
+	return "collectd"
+}
+
+// Marshal encodes pdata.Metrics into []Message of JSON data
+func (m *collectdJSONMarshaller) Marshal(metrics pdata.Metrics) ([]Message, error) {
+	simMetrics, _ := MetricsToValueLists(metrics)
+	b, err := json.Marshal(simMetrics)
+	if err != nil {
+		return nil, err
+	}
+	return []Message{{Value: b}}, nil
+}
+
+// MetricsToValueLists encodes Metrics into arr of SIMMetric
+// the SIMMetric.Dimensions property contains attributes of the associated resource and labels associated with the specific datapoint
+func MetricsToValueLists(md pdata.Metrics) ([]SIMMetric, int) {
 	var droppedMetrics int
-	var vls []JsonValueList
+	var mls []SIMMetric
 	rms := md.ResourceMetrics()
 	for i := 0; i < rms.Len(); i++ {
 		rm := rms.At(i)
@@ -58,7 +70,6 @@ func MetricsToValueLists(md pdata.Metrics) ([]JsonValueList, int) {
 		ilms := rm.InstrumentationLibraryMetrics()
 		resource := rm.Resource()
 		meta := resourceMeta(resource)
-		host, hasHost := getHostName(resource)
 		for j := 0; j < ilms.Len(); j++ {
 			ilm := ilms.At(j)
 			if ilm.IsNil() {
@@ -75,24 +86,34 @@ func MetricsToValueLists(md pdata.Metrics) ([]JsonValueList, int) {
 					droppedMetrics++
 				}
 				for _, mdp := range metricValues {
-					valueList := JsonValueList{
-						Values:  mdp.values,
-						DSTypes: mdp.dstypes,
-						DSNames: mdp.dsnames,
-						Time:    mdp.time,
-						Type:    metric.Name(),
-						Plugin:  metric.Name(),
-						Meta:    meta,
+					dimensions := make(map[string]interface{})
+					for k, v := range meta {
+						dimensions[k] = v
 					}
-					if hasHost {
-						valueList.Host = host
+					for k, v := range mdp.labels {
+						dimensions[k] = v
 					}
-					vls = append(vls, valueList)
+					simMetric := SIMMetric{
+						Value:      mdp.value,
+						Timestamp:  mdp.time,
+						MetricName: metric.Name(),
+						MetricType: mdp.metricType,
+						Dimensions: dimensions,
+					}
+					mls = append(mls, simMetric)
 				}
 			}
 		}
 	}
-	return vls, droppedMetrics
+	return mls, droppedMetrics
+}
+
+func dataPointDimensions(sm pdata.StringMap) map[string]string {
+	res := make(map[string]string)
+	sm.ForEach(func(k string, v pdata.StringValue) {
+		res[k] = v.Value()
+	})
+	return res
 }
 
 func valuesForMetric(m pdata.Metric) ([]metricDP, error) {
@@ -110,12 +131,11 @@ func valuesForMetric(m pdata.Metric) ([]metricDP, error) {
 			if dp.IsNil() {
 				continue
 			}
-			val := []json.Number{intToNumber(dp.Value())}
 			mdp := metricDP{
-				values:  val,
-				dsnames: []string{"gauge"},
-				dstypes: []string{"value"},
-				time:    timeStampToNumber(dp.Timestamp()),
+				time:       json.Number(strconv.FormatInt(int64(dp.Timestamp()), 10)),
+				metricType: "gauge",
+				labels:     dataPointDimensions(dp.LabelsMap()),
+				value:      json.Number(strconv.FormatInt(dp.Value(), 10)),
 			}
 			mdps = append(mdps, mdp)
 		}
@@ -130,12 +150,11 @@ func valuesForMetric(m pdata.Metric) ([]metricDP, error) {
 			if dp.IsNil() {
 				continue
 			}
-			val := []json.Number{floatToNumber(dp.Value())}
 			mdp := metricDP{
-				values:  val,
-				dsnames: []string{"gauge"},
-				dstypes: []string{"value"},
-				time:    timeStampToNumber(dp.Timestamp()),
+				time:       json.Number(strconv.FormatInt(int64(dp.Timestamp()), 10)),
+				metricType: "gauge",
+				labels:     dataPointDimensions(dp.LabelsMap()),
+				value:      json.Number(strconv.FormatFloat(dp.Value(), 'e', -1, 64)),
 			}
 			mdps = append(mdps, mdp)
 		}
@@ -150,12 +169,11 @@ func valuesForMetric(m pdata.Metric) ([]metricDP, error) {
 			if dp.IsNil() {
 				continue
 			}
-			val := []json.Number{intToNumber(dp.Value())}
 			mdp := metricDP{
-				values:  val,
-				dsnames: []string{"counter"},
-				dstypes: []string{"value"},
-				time:    timeStampToNumber(dp.Timestamp()),
+				time:       json.Number(strconv.FormatInt(int64(dp.Timestamp()), 10)),
+				metricType: "counter",
+				labels:     dataPointDimensions(dp.LabelsMap()),
+				value:      json.Number(strconv.FormatInt(dp.Value(), 10)),
 			}
 			mdps = append(mdps, mdp)
 		}
@@ -170,12 +188,11 @@ func valuesForMetric(m pdata.Metric) ([]metricDP, error) {
 			if dp.IsNil() {
 				continue
 			}
-			val := []json.Number{floatToNumber(dp.Value())}
 			mdp := metricDP{
-				values:  val,
-				dsnames: []string{"counter"},
-				dstypes: []string{"value"},
-				time:    timeStampToNumber(dp.Timestamp()),
+				time:       json.Number(strconv.FormatInt(int64(dp.Timestamp()), 10)),
+				metricType: "counter",
+				labels:     dataPointDimensions(dp.LabelsMap()),
+				value:      json.Number(strconv.FormatFloat(dp.Value(), 'e', -1, 64)),
 			}
 			mdps = append(mdps, mdp)
 		}
@@ -188,41 +205,11 @@ func resourceMeta(resource pdata.Resource) map[string]interface{} {
 	if resource.IsNil() {
 		return meta
 	}
-	rattrs := resource.Attributes()
-	rattrs.ForEach(func(key string, val pdata.AttributeValue) {
+	attrs := resource.Attributes()
+	attrs.ForEach(func(key string, val pdata.AttributeValue) {
 		meta[key] = getAttributeData(val)
 	})
 	return meta
-}
-
-func getHostName(resource pdata.Resource) (string, bool) {
-	res := ""
-	found := false
-	if resource.IsNil() {
-		return res, false
-	}
-	rattrs := resource.Attributes()
-	rattrs.ForEach(func(key string, val pdata.AttributeValue) {
-		if key == "host.hostname" {
-			if val.Type() == pdata.AttributeValueSTRING {
-				res = val.StringVal()
-				found = true
-			}
-		}
-	})
-	return res, found
-}
-
-func floatToNumber(d float64) json.Number {
-	return json.Number(strconv.FormatFloat(d, 'e', -1, 64))
-}
-
-func intToNumber(d int64) json.Number {
-	return json.Number(strconv.FormatInt(d, 10))
-}
-
-func timeStampToNumber(d pdata.TimestampUnixNano) json.Number {
-	return json.Number(strconv.FormatInt(int64(d), 10))
 }
 
 func getAttributeData(val pdata.AttributeValue) interface{} {
@@ -230,11 +217,11 @@ func getAttributeData(val pdata.AttributeValue) interface{} {
 	case pdata.AttributeValueSTRING:
 		return val.StringVal()
 	case pdata.AttributeValueDOUBLE:
-		return floatToNumber(val.DoubleVal())
+		return json.Number(strconv.FormatFloat(val.DoubleVal(), 'e', -1, 64))
 	case pdata.AttributeValueBOOL:
 		return val.BoolVal()
 	case pdata.AttributeValueINT:
-		return intToNumber(val.IntVal())
+		return json.Number(strconv.FormatInt(val.IntVal(), 10))
 	case pdata.AttributeValueARRAY:
 		valArray := val.ArrayVal()
 		var dataArray []interface{}

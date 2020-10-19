@@ -24,11 +24,9 @@ import (
 )
 
 func TestMetricsToValueLists(t *testing.T) {
-	md := testdata.GenerateMetricsTwoMetrics()
+	md := testdata.GenerateMetricsAllTypesEmptyDataPoint()
 	vls, dropped := MetricsToValueLists(md)
 	res, _ := json.Marshal(vls)
-	original, _ := json.Marshal(md)
-	fmt.Println(original)
 	fmt.Println(string(res))
 	fmt.Println("dropped: ", dropped)
 	assert.True(t, true)
