@@ -29,13 +29,19 @@ const (
 )
 
 // SIMMetric is a JSON interface closely matching SIM metrics structure
-// ref: https://dev.splunk.com/observability/docs/apibasics/data_model_basics
+// Ref: https://dev.splunk.com/observability/docs/apibasics/data_model_basics
+// For datapoints of type pdata.MetricDataTypeIntHistogram and pdata.MetricDataTypeIntHistogram,
+//	where <basename> is the root name of the metric:
+//		The total count gets converted to a cumulative counter called <basename>_count
+//		The total sum gets converted to a cumulative counter called <basename>
+//		Each histogram bucket is converted to a cumulative counter called <basename>_bucket
+//		and will include a dimension called upper_bound that specifies the maximum value in that bucket.
 type SIMMetric struct {
-	MetricName string                 `json:"metric_name"`
-	Value      json.Number            `json:"value"`
-	MetricType string                 `json:"metric_type"`
-	Timestamp  json.Number            `json:"timestamp"`
-	Dimensions map[string]interface{} `json:"dimensions"`
+	MetricName string                 `json:"metric_name"` // MetricName is the name of the metric
+	Value      json.Number            `json:"value"`       // Value is the number value recorded for the metric
+	MetricType string                 `json:"metric_type"` // MetricType is the type of the metric.
+	Timestamp  json.Number            `json:"timestamp"`   // Timestamp  associated with metric.
+	Dimensions map[string]interface{} `json:"dimensions"`  // Dimensions map of metadata (e.g. hostname) of metric.
 }
 
 type metricDP struct {
@@ -64,7 +70,6 @@ func (m *collectdJSONMarshaller) Marshal(metrics pdata.Metrics) ([]Message, erro
 }
 
 // MetricsToValueLists encodes Metrics into arr of SIMMetric
-// the SIMMetric.Dimensions property contains attributes of the associated resource and labels associated with the specific datapoint
 func MetricsToValueLists(md pdata.Metrics) (*[]SIMMetric, int) {
 	var droppedMetrics int
 	var mls []SIMMetric
@@ -141,7 +146,7 @@ func valuesForMetric(m pdata.Metric) ([]metricDP, error) {
 			}
 			mdp := metricDP{
 				time:       json.Number(strconv.FormatInt(int64(dp.Timestamp()), 10)),
-				metricType: "gauge",
+				metricType: MetricTypeGauge,
 				labels:     dataPointDimensions(dp.LabelsMap()),
 				value:      json.Number(strconv.FormatInt(dp.Value(), 10)),
 			}
@@ -160,7 +165,7 @@ func valuesForMetric(m pdata.Metric) ([]metricDP, error) {
 			}
 			mdp := metricDP{
 				time:       json.Number(strconv.FormatInt(int64(dp.Timestamp()), 10)),
-				metricType: "gauge",
+				metricType: MetricTypeGauge,
 				labels:     dataPointDimensions(dp.LabelsMap()),
 				value:      json.Number(strconv.FormatFloat(dp.Value(), 'e', -1, 64)),
 			}
@@ -212,12 +217,6 @@ func valuesForMetric(m pdata.Metric) ([]metricDP, error) {
 			}
 			mdps = append(mdps, mdp)
 		}
-	// TODO: SIM does not support pre-aggregated data points (histogram), extend the json somehow
-	// Translating histogram distribution to cumulative counts
-	// For a Histogram datapoint these metrics (cumulative counter) are emitted:
-	// 1) A <metric> for the sum of datapoint values
-	// 2) A <metric>_count for the count of datapoints
-	// 3) Multiple <metric>_quantile for the number of events per bucket -with an upper_bound dimension for the bucket
 	case pdata.MetricDataTypeDoubleHistogram:
 		doubleHistogram := m.DoubleHistogram()
 		if doubleHistogram.IsNil() {
