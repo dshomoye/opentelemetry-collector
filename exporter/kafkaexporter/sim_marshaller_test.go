@@ -17,15 +17,16 @@ package kafkaexporter
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"go.opentelemetry.io/collector/internal/data/testdata"
 )
 
 func TestMetricsToValueLists(t *testing.T) {
 	md := testdata.GenerateMetricsAllTypesEmptyDataPoint()
-	vls, dropped := MetricsToValueLists(md)
+	vls, dropped := MetricsToSIM(md)
 	res, _ := json.Marshal(vls)
 	fmt.Println(string(res))
 	fmt.Println("dropped: ", dropped)

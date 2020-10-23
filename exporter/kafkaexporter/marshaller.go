@@ -59,8 +59,10 @@ func tracesMarshallers() map[string]TracesMarshaller {
 func metricsMarshallers() map[string]MetricsMarshaller {
 	otlppb := &otlpMetricsPbMarshaller{}
 	otlpjson := &otlpMetricsJSONMarshaller{}
+	simjson := &simJSONMarshaller{}
 	return map[string]MetricsMarshaller{
 		otlppb.Encoding():   otlppb,
 		otlpjson.Encoding(): otlpjson,
+		simjson.Encoding():  simjson,
 	}
 }

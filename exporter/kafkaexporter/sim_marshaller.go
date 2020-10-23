@@ -15,10 +15,11 @@
 package kafkaexporter
 
 import (
+	"encoding/json"
 	"errors"
+	"math"
 	"strconv"
 
-	"encoding/json"
 	"go.opentelemetry.io/collector/consumer/pdata"
 )
 
@@ -28,9 +29,11 @@ const (
 	MetricTypeCumulativeCount = "cumulative_count"
 )
 
-// SIMMetric is a JSON interface closely matching SIM metrics structure
+var infinityBound = math.Inf(1)
+
+// SIMMetric is a JSON interface closely matching SIM metrics structure.
 // Ref: https://dev.splunk.com/observability/docs/apibasics/data_model_basics
-// For datapoints of type pdata.MetricDataTypeIntHistogram and pdata.MetricDataTypeIntHistogram,
+//	For datapoints of type pdata.MetricDataTypeIntHistogram and pdata.MetricDataTypeIntHistogram,
 //	where <basename> is the root name of the metric:
 //		The total count gets converted to a cumulative counter called <basename>_count
 //		The total sum gets converted to a cumulative counter called <basename>
@@ -52,16 +55,16 @@ type metricDP struct {
 	nameSuffix string
 }
 
-type collectdJSONMarshaller struct{}
+type simJSONMarshaller struct{}
 
-// Encoding returns config encoding for collectd marshaller
-func (m *collectdJSONMarshaller) Encoding() string {
-	return "collectd"
+// Encoding returns config encoding for sim marshaller
+func (m *simJSONMarshaller) Encoding() string {
+	return "sim_json"
 }
 
 // Marshal encodes pdata.Metrics into []Message of JSON data
-func (m *collectdJSONMarshaller) Marshal(metrics pdata.Metrics) ([]Message, error) {
-	simMetrics, _ := MetricsToValueLists(metrics)
+func (m *simJSONMarshaller) Marshal(metrics pdata.Metrics) ([]Message, error) {
+	simMetrics, _ := MetricsToSIM(metrics)
 	b, err := json.Marshal(*simMetrics)
 	if err != nil {
 		return nil, err
@@ -69,8 +72,8 @@ func (m *collectdJSONMarshaller) Marshal(metrics pdata.Metrics) ([]Message, erro
 	return []Message{{Value: b}}, nil
 }
 
-// MetricsToValueLists encodes Metrics into arr of SIMMetric
-func MetricsToValueLists(md pdata.Metrics) (*[]SIMMetric, int) {
+// MetricsToSIM encodes Metrics into arr of SIMMetric
+func MetricsToSIM(md pdata.Metrics) (*[]SIMMetric, int) {
 	var droppedMetrics int
 	var mls []SIMMetric
 	rms := md.ResourceMetrics()
@@ -145,10 +148,10 @@ func valuesForMetric(m pdata.Metric) ([]metricDP, error) {
 				continue
 			}
 			mdp := metricDP{
-				time:       json.Number(strconv.FormatInt(int64(dp.Timestamp()), 10)),
+				time:       intToNumber(int64(dp.Timestamp())),
 				metricType: MetricTypeGauge,
 				labels:     dataPointDimensions(dp.LabelsMap()),
-				value:      json.Number(strconv.FormatInt(dp.Value(), 10)),
+				value:      intToNumber(dp.Value()),
 			}
 			mdps = append(mdps, mdp)
 		}
@@ -164,10 +167,10 @@ func valuesForMetric(m pdata.Metric) ([]metricDP, error) {
 				continue
 			}
 			mdp := metricDP{
-				time:       json.Number(strconv.FormatInt(int64(dp.Timestamp()), 10)),
+				time:       intToNumber(int64(dp.Timestamp())),
 				metricType: MetricTypeGauge,
 				labels:     dataPointDimensions(dp.LabelsMap()),
-				value:      json.Number(strconv.FormatFloat(dp.Value(), 'e', -1, 64)),
+				value:      floatToNumber(dp.Value()),
 			}
 			mdps = append(mdps, mdp)
 		}
@@ -187,10 +190,10 @@ func valuesForMetric(m pdata.Metric) ([]metricDP, error) {
 				continue
 			}
 			mdp := metricDP{
-				time:       json.Number(strconv.FormatInt(int64(dp.Timestamp()), 10)),
+				time:       intToNumber(int64(dp.Timestamp())),
 				metricType: mType,
 				labels:     dataPointDimensions(dp.LabelsMap()),
-				value:      json.Number(strconv.FormatInt(dp.Value(), 10)),
+				value:      intToNumber(dp.Value()),
 			}
 			mdps = append(mdps, mdp)
 		}
@@ -210,10 +213,10 @@ func valuesForMetric(m pdata.Metric) ([]metricDP, error) {
 				continue
 			}
 			mdp := metricDP{
-				time:       json.Number(strconv.FormatInt(int64(dp.Timestamp()), 10)),
+				time:       intToNumber(int64(dp.Timestamp())),
 				metricType: mType,
 				labels:     dataPointDimensions(dp.LabelsMap()),
-				value:      json.Number(strconv.FormatFloat(dp.Value(), 'e', -1, 64)),
+				value:      floatToNumber(dp.Value()),
 			}
 			mdps = append(mdps, mdp)
 		}
@@ -229,34 +232,38 @@ func valuesForMetric(m pdata.Metric) ([]metricDP, error) {
 				continue
 			}
 			mdp := metricDP{
-				time:       json.Number(strconv.FormatInt(int64(dp.Timestamp()), 10)),
+				time:       intToNumber(int64(dp.Timestamp())),
 				metricType: MetricTypeCumulativeCount,
 				labels:     dataPointDimensions(dp.LabelsMap()),
-				value:      json.Number(strconv.FormatFloat(dp.Sum(), 'e', -1, 64)),
+				value:      floatToNumber(dp.Sum()),
 			}
-			mdp_count := metricDP{
-				time:       json.Number(strconv.FormatInt(int64(dp.Timestamp()), 10)),
+			mdpCount := metricDP{
+				time:       intToNumber(int64(dp.Timestamp())),
 				metricType: MetricTypeCumulativeCount,
 				labels:     dataPointDimensions(dp.LabelsMap()),
-				value:      json.Number(strconv.FormatInt(int64(dp.Count()), 10)),
+				value:      intToNumber(int64(dp.Count())),
 				nameSuffix: "_count",
 			}
-			mdps = append(mdps, mdp, mdp_count)
-			for i, bucketCount := range dp.BucketCounts() {
+			mdps = append(mdps, mdp, mdpCount)
+			if len(dp.BucketCounts()) != len(dp.ExplicitBounds())+1 {
+				continue
+			}
+			explicitBounds := append(dp.ExplicitBounds(), infinityBound)
+			for i, upperBound := range explicitBounds {
 				labels := map[string]string{
-					"upper_bound": strconv.FormatFloat(dp.ExplicitBounds()[i], 'e', -1, 64),
+					"upper_bound": strconv.FormatFloat(upperBound, 'e', -1, 64),
 				}
 				for k, v := range dataPointDimensions(dp.LabelsMap()) {
 					labels[k] = v
 				}
-				mdp_quantile := metricDP{
-					time:       json.Number(strconv.FormatInt(int64(dp.Timestamp()), 10)),
+				mdpQuantile := metricDP{
+					time:       intToNumber(int64(dp.Timestamp())),
 					metricType: MetricTypeCumulativeCount,
 					labels:     labels,
-					value:      json.Number(strconv.FormatInt(int64(bucketCount), 10)),
-					nameSuffix: "_quantile",
+					value:      intToNumber(int64(dp.BucketCounts()[i])),
+					nameSuffix: "_bucket",
 				}
-				mdps = append(mdps, mdp_quantile)
+				mdps = append(mdps, mdpQuantile)
 			}
 		}
 	case pdata.MetricDataTypeIntHistogram:
@@ -271,34 +278,38 @@ func valuesForMetric(m pdata.Metric) ([]metricDP, error) {
 				continue
 			}
 			mdp := metricDP{
-				time:       json.Number(strconv.FormatInt(int64(dp.Timestamp()), 10)),
+				time:       intToNumber(int64(dp.Timestamp())),
 				metricType: MetricTypeCumulativeCount,
 				labels:     dataPointDimensions(dp.LabelsMap()),
-				value:      json.Number(strconv.FormatInt(int64(dp.Sum()), 10)),
+				value:      intToNumber(dp.Sum()),
 			}
-			mdp_count := metricDP{
-				time:       json.Number(strconv.FormatInt(int64(dp.Timestamp()), 10)),
+			mdpCount := metricDP{
+				time:       intToNumber(int64(dp.Timestamp())),
 				metricType: MetricTypeCumulativeCount,
 				labels:     dataPointDimensions(dp.LabelsMap()),
-				value:      json.Number(strconv.FormatInt(int64(dp.Count()), 10)),
+				value:      intToNumber(int64(dp.Count())),
 				nameSuffix: "_count",
 			}
-			mdps = append(mdps, mdp, mdp_count)
-			for i, bucketCount := range dp.BucketCounts() {
+			mdps = append(mdps, mdp, mdpCount)
+			if len(dp.BucketCounts()) != len(dp.ExplicitBounds())+1 {
+				continue
+			}
+			explicitBounds := append(dp.ExplicitBounds(), infinityBound)
+			for i, upperBound := range explicitBounds {
 				labels := map[string]string{
-					"upper_bound": strconv.FormatFloat(dp.ExplicitBounds()[i], 'e', -1, 64),
+					"upper_bound": strconv.FormatFloat(upperBound, 'e', -1, 64),
 				}
 				for k, v := range dataPointDimensions(dp.LabelsMap()) {
 					labels[k] = v
 				}
-				mdp_quantile := metricDP{
-					time:       json.Number(strconv.FormatInt(int64(dp.Timestamp()), 10)),
+				mdpQuantile := metricDP{
+					time:       intToNumber(int64(dp.Timestamp())),
 					metricType: MetricTypeCumulativeCount,
 					labels:     labels,
-					value:      json.Number(strconv.FormatInt(int64(bucketCount), 10)),
+					value:      intToNumber(int64(dp.BucketCounts()[i])),
 					nameSuffix: "_quantile",
 				}
-				mdps = append(mdps, mdp_quantile)
+				mdps = append(mdps, mdpQuantile)
 			}
 		}
 	}
@@ -338,4 +349,12 @@ func getAttributeData(val pdata.AttributeValue) interface{} {
 		return val.MapVal()
 	}
 	return nil
+}
+
+func intToNumber(n int64) json.Number {
+	return json.Number(strconv.FormatInt(n, 10))
+}
+
+func floatToNumber(n float64) json.Number {
+	return json.Number(strconv.FormatFloat(n, 'e', -1, 64))
 }
