@@ -22,6 +22,12 @@ import (
 	"go.opentelemetry.io/collector/consumer/pdata"
 )
 
+const (
+	MetricTypeCounter         = "counter"
+	MetricTypeGauge           = "gauge"
+	MetricTypeCumulativeCount = "cumulative_count"
+)
+
 // SIMMetric is a JSON interface closely matching SIM metrics structure
 // ref: https://dev.splunk.com/observability/docs/apibasics/data_model_basics
 type SIMMetric struct {
@@ -37,9 +43,10 @@ type metricDP struct {
 	labels     map[string]string
 	metricType string
 	value      json.Number
+	nameSuffix string
 }
 
-type collectdJSONMarshaller struct {}
+type collectdJSONMarshaller struct{}
 
 // Encoding returns config encoding for collectd marshaller
 func (m *collectdJSONMarshaller) Encoding() string {
@@ -49,7 +56,7 @@ func (m *collectdJSONMarshaller) Encoding() string {
 // Marshal encodes pdata.Metrics into []Message of JSON data
 func (m *collectdJSONMarshaller) Marshal(metrics pdata.Metrics) ([]Message, error) {
 	simMetrics, _ := MetricsToValueLists(metrics)
-	b, err := json.Marshal(simMetrics)
+	b, err := json.Marshal(*simMetrics)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +65,7 @@ func (m *collectdJSONMarshaller) Marshal(metrics pdata.Metrics) ([]Message, erro
 
 // MetricsToValueLists encodes Metrics into arr of SIMMetric
 // the SIMMetric.Dimensions property contains attributes of the associated resource and labels associated with the specific datapoint
-func MetricsToValueLists(md pdata.Metrics) ([]SIMMetric, int) {
+func MetricsToValueLists(md pdata.Metrics) (*[]SIMMetric, int) {
 	var droppedMetrics int
 	var mls []SIMMetric
 	rms := md.ResourceMetrics()
@@ -93,10 +100,11 @@ func MetricsToValueLists(md pdata.Metrics) ([]SIMMetric, int) {
 					for k, v := range mdp.labels {
 						dimensions[k] = v
 					}
+					metricName := metric.Name() + mdp.nameSuffix
 					simMetric := SIMMetric{
 						Value:      mdp.value,
 						Timestamp:  mdp.time,
-						MetricName: metric.Name(),
+						MetricName: metricName,
 						MetricType: mdp.metricType,
 						Dimensions: dimensions,
 					}
@@ -105,7 +113,7 @@ func MetricsToValueLists(md pdata.Metrics) ([]SIMMetric, int) {
 			}
 		}
 	}
-	return mls, droppedMetrics
+	return &mls, droppedMetrics
 }
 
 func dataPointDimensions(sm pdata.StringMap) map[string]string {
@@ -164,6 +172,10 @@ func valuesForMetric(m pdata.Metric) ([]metricDP, error) {
 			return mdps, err
 		}
 		dataPoints := intSum.DataPoints()
+		mType := MetricTypeCounter
+		if intSum.AggregationTemporality() == pdata.AggregationTemporalityCumulative {
+			mType = MetricTypeCumulativeCount
+		}
 		for i := 0; i < dataPoints.Len(); i++ {
 			dp := dataPoints.At(i)
 			if dp.IsNil() {
@@ -171,7 +183,7 @@ func valuesForMetric(m pdata.Metric) ([]metricDP, error) {
 			}
 			mdp := metricDP{
 				time:       json.Number(strconv.FormatInt(int64(dp.Timestamp()), 10)),
-				metricType: "counter",
+				metricType: mType,
 				labels:     dataPointDimensions(dp.LabelsMap()),
 				value:      json.Number(strconv.FormatInt(dp.Value(), 10)),
 			}
@@ -183,6 +195,10 @@ func valuesForMetric(m pdata.Metric) ([]metricDP, error) {
 			return mdps, err
 		}
 		dataPoints := doubleSum.DataPoints()
+		mType := MetricTypeCounter
+		if doubleSum.AggregationTemporality() == pdata.AggregationTemporalityCumulative {
+			mType = MetricTypeCumulativeCount
+		}
 		for i := 0; i < dataPoints.Len(); i++ {
 			dp := dataPoints.At(i)
 			if dp.IsNil() {
@@ -190,11 +206,101 @@ func valuesForMetric(m pdata.Metric) ([]metricDP, error) {
 			}
 			mdp := metricDP{
 				time:       json.Number(strconv.FormatInt(int64(dp.Timestamp()), 10)),
-				metricType: "counter",
+				metricType: mType,
 				labels:     dataPointDimensions(dp.LabelsMap()),
 				value:      json.Number(strconv.FormatFloat(dp.Value(), 'e', -1, 64)),
 			}
 			mdps = append(mdps, mdp)
+		}
+	// TODO: SIM does not support pre-aggregated data points (histogram), extend the json somehow
+	// Translating histogram distribution to cumulative counts
+	// For a Histogram datapoint these metrics (cumulative counter) are emitted:
+	// 1) A <metric> for the sum of datapoint values
+	// 2) A <metric>_count for the count of datapoints
+	// 3) Multiple <metric>_quantile for the number of events per bucket -with an upper_bound dimension for the bucket
+	case pdata.MetricDataTypeDoubleHistogram:
+		doubleHistogram := m.DoubleHistogram()
+		if doubleHistogram.IsNil() {
+			return nil, err
+		}
+		dataPoints := doubleHistogram.DataPoints()
+		for i := 0; i < dataPoints.Len(); i++ {
+			dp := dataPoints.At(i)
+			if dp.IsNil() {
+				continue
+			}
+			mdp := metricDP{
+				time:       json.Number(strconv.FormatInt(int64(dp.Timestamp()), 10)),
+				metricType: MetricTypeCumulativeCount,
+				labels:     dataPointDimensions(dp.LabelsMap()),
+				value:      json.Number(strconv.FormatFloat(dp.Sum(), 'e', -1, 64)),
+			}
+			mdp_count := metricDP{
+				time:       json.Number(strconv.FormatInt(int64(dp.Timestamp()), 10)),
+				metricType: MetricTypeCumulativeCount,
+				labels:     dataPointDimensions(dp.LabelsMap()),
+				value:      json.Number(strconv.FormatInt(int64(dp.Count()), 10)),
+				nameSuffix: "_count",
+			}
+			mdps = append(mdps, mdp, mdp_count)
+			for i, bucketCount := range dp.BucketCounts() {
+				labels := map[string]string{
+					"upper_bound": strconv.FormatFloat(dp.ExplicitBounds()[i], 'e', -1, 64),
+				}
+				for k, v := range dataPointDimensions(dp.LabelsMap()) {
+					labels[k] = v
+				}
+				mdp_quantile := metricDP{
+					time:       json.Number(strconv.FormatInt(int64(dp.Timestamp()), 10)),
+					metricType: MetricTypeCumulativeCount,
+					labels:     labels,
+					value:      json.Number(strconv.FormatInt(int64(bucketCount), 10)),
+					nameSuffix: "_quantile",
+				}
+				mdps = append(mdps, mdp_quantile)
+			}
+		}
+	case pdata.MetricDataTypeIntHistogram:
+		intHistogram := m.IntHistogram()
+		if intHistogram.IsNil() {
+			return nil, err
+		}
+		dataPoints := intHistogram.DataPoints()
+		for i := 0; i < dataPoints.Len(); i++ {
+			dp := dataPoints.At(i)
+			if dp.IsNil() {
+				continue
+			}
+			mdp := metricDP{
+				time:       json.Number(strconv.FormatInt(int64(dp.Timestamp()), 10)),
+				metricType: MetricTypeCumulativeCount,
+				labels:     dataPointDimensions(dp.LabelsMap()),
+				value:      json.Number(strconv.FormatInt(int64(dp.Sum()), 10)),
+			}
+			mdp_count := metricDP{
+				time:       json.Number(strconv.FormatInt(int64(dp.Timestamp()), 10)),
+				metricType: MetricTypeCumulativeCount,
+				labels:     dataPointDimensions(dp.LabelsMap()),
+				value:      json.Number(strconv.FormatInt(int64(dp.Count()), 10)),
+				nameSuffix: "_count",
+			}
+			mdps = append(mdps, mdp, mdp_count)
+			for i, bucketCount := range dp.BucketCounts() {
+				labels := map[string]string{
+					"upper_bound": strconv.FormatFloat(dp.ExplicitBounds()[i], 'e', -1, 64),
+				}
+				for k, v := range dataPointDimensions(dp.LabelsMap()) {
+					labels[k] = v
+				}
+				mdp_quantile := metricDP{
+					time:       json.Number(strconv.FormatInt(int64(dp.Timestamp()), 10)),
+					metricType: MetricTypeCumulativeCount,
+					labels:     labels,
+					value:      json.Number(strconv.FormatInt(int64(bucketCount), 10)),
+					nameSuffix: "_quantile",
+				}
+				mdps = append(mdps, mdp_quantile)
+			}
 		}
 	}
 	return mdps, nil
