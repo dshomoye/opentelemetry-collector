@@ -15,8 +15,6 @@
 package kafkaexporter
 
 import (
-	"bytes"
-
 	"github.com/gogo/protobuf/jsonpb"
 
 	"go.opentelemetry.io/collector/consumer/pdata"
@@ -32,48 +30,10 @@ type otlpTracesPbMarshaller struct {
 type otlpMetricsPbMarshaller struct {
 }
 
-type otlpMetricsJSONMarshaller struct {
-}
-
-type otlpTracesJSONMarshaller struct {
-}
-
 var _ TracesMarshaller = (*otlpTracesPbMarshaller)(nil)
 
 func (m *otlpTracesPbMarshaller) Encoding() string {
 	return defaultEncoding
-}
-
-func (m *otlpMetricsJSONMarshaller) Encoding() string {
-	return "otlp_json"
-}
-
-func (m *otlpTracesJSONMarshaller) Encoding() string {
-	return "otlp_json"
-}
-
-func (m *otlpMetricsJSONMarshaller) Marshal(metrics pdata.Metrics) ([]Message, error) {
-	out := new(bytes.Buffer)
-	request := otlpmetric.ExportMetricsServiceRequest{
-		ResourceMetrics: pdata.MetricsToOtlp(metrics),
-	}
-	err := jsonpbMarshaller.Marshal(out, &request)
-	if err != nil {
-		return nil, err
-	}
-	return []Message{{Value: out.Bytes()}}, nil
-}
-
-func (m *otlpTracesJSONMarshaller) Marshal(metrics pdata.Traces) ([]Message, error) {
-	out := new(bytes.Buffer)
-	request := otlptrace.ExportTraceServiceRequest{
-		ResourceSpans: pdata.TracesToOtlp(metrics),
-	}
-	err := jsonpbMarshaller.Marshal(out, &request)
-	if err != nil {
-		return nil, err
-	}
-	return []Message{{Value: out.Bytes()}}, nil
 }
 
 func (m *otlpTracesPbMarshaller) Marshal(traces pdata.Traces) ([]Message, error) {

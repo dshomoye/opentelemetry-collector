@@ -15,10 +15,8 @@
 package kafkaexporter
 
 import (
-	"bytes"
 	"testing"
 
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -44,42 +42,7 @@ func TestOTLPTracesPbMarshaller(t *testing.T) {
 	assert.Equal(t, []Message{{Value: expected}}, messages)
 }
 
-func TestOTLPTracesJSONMarshaller(t *testing.T) {
-	td := testdata.GenerateTraceDataTwoSpansSameResource()
-	request := &otlptrace.ExportTraceServiceRequest{
-		ResourceSpans: pdata.TracesToOtlp(td),
-	}
-	expected := new(bytes.Buffer)
-	mar := jsonpb.Marshaler{}
-	err := mar.Marshal(expected, request)
-	require.NoError(t, err)
-	require.NotNil(t, expected)
-
-	m := otlpTracesJSONMarshaller{}
-	assert.Equal(t, "otlp_json", m.Encoding())
-	messages, err := m.Marshal(td)
-	require.NoError(t, err)
-	assert.Equal(t, []Message{{Value: expected.Bytes()}}, messages)
-}
-
-func TestOTLPMetricsJSONMarshaller(t *testing.T) {
-	md := testdata.GenerateMetricsTwoMetrics()
-	request := &otlpmetric.ExportMetricsServiceRequest{
-		ResourceMetrics: pdata.MetricsToOtlp(md),
-	}
-	expected := new(bytes.Buffer)
-	mar := jsonpb.Marshaler{}
-	err := mar.Marshal(expected, request)
-	require.NoError(t, err)
-	require.NotNil(t, expected)
-	m := otlpMetricsJSONMarshaller{}
-	assert.Equal(t, "otlp_json", m.Encoding())
-	messages, err := m.Marshal(md)
-	require.NoError(t, err)
-	assert.Equal(t, []Message{{Value: expected.Bytes()}}, messages)
-}
-
-func TestOTLPMetricsPbJSONMarshaller(t *testing.T) {
+func TestOTLPMetricsPbMarshaller(t *testing.T) {
 	md := testdata.GenerateMetricsTwoMetrics()
 	request := &otlpmetric.ExportMetricsServiceRequest{
 		ResourceMetrics: pdata.MetricsToOtlp(md),

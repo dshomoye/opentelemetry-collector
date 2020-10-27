@@ -26,7 +26,6 @@ func TestDefaultMarshallers(t *testing.T) {
 		"otlp_proto",
 		"jaeger_proto",
 		"jaeger_json",
-		"otlp_json",
 	}
 	marshallers := tracesMarshallers()
 	assert.Equal(t, len(expectedEncodings), len(marshallers))
