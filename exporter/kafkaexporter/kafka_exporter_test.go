@@ -158,6 +158,23 @@ func TestMetricsDataPusher(t *testing.T) {
 	assert.Equal(t, 0, dropped)
 }
 
+func TestMetricsDataPusher_sim_json_encoding(t *testing.T) {
+	c := sarama.NewConfig()
+	producer := mocks.NewSyncProducer(t, c)
+	producer.ExpectSendMessageAndSucceed()
+
+	p := kafkaMetricsProducer{
+		producer:   producer,
+		marshaller: &simJSONMarshaller{},
+	}
+	t.Cleanup(func() {
+		require.NoError(t, p.Close(context.Background()))
+	})
+	dropped, err := p.metricsDataPusher(context.Background(), testdata.GenerateMetricsTwoMetrics())
+	require.NoError(t, err)
+	assert.Equal(t, 0, dropped)
+}
+
 func TestMetricsDataPusher_err(t *testing.T) {
 	c := sarama.NewConfig()
 	producer := mocks.NewSyncProducer(t, c)
