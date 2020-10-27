@@ -252,7 +252,7 @@ func valuesForMetric(m pdata.Metric) ([]metricDP, error) {
 			explicitBounds := append(dp.ExplicitBounds(), infinityBound)
 			for i, upperBound := range explicitBounds {
 				labels := map[string]string{
-					"upper_bound": strconv.FormatFloat(upperBound, 'e', -1, 64),
+					"upper_bound": strconv.FormatFloat(upperBound, 'f', -1, 64),
 				}
 				for k, v := range dataPointDimensions(dp.LabelsMap()) {
 					labels[k] = v
@@ -298,7 +298,7 @@ func valuesForMetric(m pdata.Metric) ([]metricDP, error) {
 			explicitBounds := append(dp.ExplicitBounds(), infinityBound)
 			for i, upperBound := range explicitBounds {
 				labels := map[string]string{
-					"upper_bound": strconv.FormatFloat(upperBound, 'e', -1, 64),
+					"upper_bound": strconv.FormatFloat(upperBound, 'f', -1, 64),
 				}
 				for k, v := range dataPointDimensions(dp.LabelsMap()) {
 					labels[k] = v
@@ -336,11 +336,11 @@ func getAttributeData(val pdata.AttributeValue) interface{} {
 	case pdata.AttributeValueSTRING:
 		return val.StringVal()
 	case pdata.AttributeValueDOUBLE:
-		return json.Number(strconv.FormatFloat(val.DoubleVal(), 'e', -1, 64))
+		return floatToNumber(val.DoubleVal())
 	case pdata.AttributeValueBOOL:
 		return val.BoolVal()
 	case pdata.AttributeValueINT:
-		return json.Number(strconv.FormatInt(val.IntVal(), 10))
+		return intToNumber(val.IntVal())
 	case pdata.AttributeValueARRAY:
 		valArray := val.ArrayVal()
 		var dataArray []interface{}
@@ -359,5 +359,5 @@ func intToNumber(n int64) json.Number {
 }
 
 func floatToNumber(n float64) json.Number {
-	return json.Number(strconv.FormatFloat(n, 'e', -1, 64))
+	return json.Number(strconv.FormatFloat(n, 'f', -1, 64))
 }

@@ -15,7 +15,6 @@
 package kafkaexporter
 
 import (
-	"fmt"
 	"go.opentelemetry.io/collector/consumer/pdata"
 	"testing"
 	"time"
@@ -26,27 +25,29 @@ import (
 )
 
 var (
-	TestMetricStartTime      = time.Date(2020, 5, 21, 20, 26, 32, 524, time.UTC)
+	TestMetricStartTime      = time.Date(2020, 10, 21, 20, 26, 32, 524, time.UTC)
 	TestMetricStartTimestamp = pdata.TimestampUnixNano(TestMetricStartTime.UnixNano())
-	TestMetricTime      = time.Date(2020, 5, 21, 20, 26, 33, 889, time.UTC)
-	TestMetricTimestamp = pdata.TimestampUnixNano(TestMetricTime.UnixNano())
+	TestMetricTime           = time.Date(2020, 10, 21, 20, 26, 33, 889, time.UTC)
+	TestMetricTimestamp      = pdata.TimestampUnixNano(TestMetricTime.UnixNano())
 )
 
 func TestMetricsToSIM(t *testing.T) {
 	md := generateMetricsAllTypesWithDataPoints()
 
 	simList, _ := MetricsToSIM(md)
-	dgSimMetric := SIMMetric{
+	result := *simList
+	assert.Equal(t, 12, len(result))
+
+	dgMetric := SIMMetric{
 		MetricName: "gauge-double",
-		Value:      "1e+02",
+		Value:      "100",
 		MetricType: "gauge",
-		Timestamp:  "1590092793000000889",
+		Timestamp:  "1603311993000000889",
 		Dimensions: map[string]interface{}{
 			"resource-attr": "resource-attr-val-1",
 		},
 	}
-	result := *simList
-	assert.Equal(t, dgSimMetric, result[0])
+	assert.Equal(t, dgMetric, result[0])
 }
 
 func TestMetricsToSIM_ignores_invalid_dataType(t *testing.T) {
@@ -56,18 +57,30 @@ func TestMetricsToSIM_ignores_invalid_dataType(t *testing.T) {
 	assert.Equal(t, 0, len(*simList))
 }
 
-func TestMetricsToSIM_drops_nil_metrics(t *testing.T){
+func TestMetricsToSIM_drops_nil_metrics(t *testing.T) {
 	md := testdata.GenerateMetricsOneMetricOneNil()
 	simList, dropped := MetricsToSIM(md)
 	assert.Equal(t, dropped, 1)
 	assert.Greater(t, len(*simList), 0)
 }
 
-func TestMetricsToSIM_ignores_nil_dataPoints(t *testing.T){
+func TestMetricsToSIM_ignores_nil_dataPoints(t *testing.T) {
 	md := testdata.GenerateMetricsAllTypesNilDataPoint()
-	simList, dropped := MetricsToSIM(md)
-	fmt.Println(simList, dropped)
+	simList, _ := MetricsToSIM(md)
 	assert.Equal(t, 0, len(*simList))
+}
+
+func TestMetricsToSIM_parses_all_attributes(t *testing.T) {
+	md := testdata.GenerateMetricsOneMetricOneDataPoint()
+	resource := md.ResourceMetrics().At(0).Resource()
+	resource.Attributes().InitFromAttributeMap(*getAttributesAllTypes())
+	intGauge := md.ResourceMetrics().At(0).InstrumentationLibraryMetrics().At(0).Metrics().At(0).IntGauge()
+	intGauge.DataPoints().At(0).LabelsMap().InitEmptyWithCapacity(0)
+
+	m, _ := MetricsToSIM(md)
+	result := *m
+	size := len(result[0].Dimensions)
+	assert.Equal(t, 6, size)
 }
 
 func initIntGaugeMetricOneDataPoint(m pdata.Metric) {
@@ -132,7 +145,7 @@ func initDoubleHistogramDataPoint(hm pdata.Metric) {
 func generateMetricsAllTypesWithDataPoints() pdata.Metrics {
 	metricData := testdata.GenerateMetricsAllTypesEmptyDataPoint()
 	metrics := metricData.ResourceMetrics().At(0).InstrumentationLibraryMetrics().At(0).Metrics()
-	for i := 0; i < metrics.Len(); i ++ {
+	for i := 0; i < metrics.Len(); i++ {
 		metric := metrics.At(i)
 		switch metric.DataType() {
 		case pdata.MetricDataTypeIntGauge:
@@ -150,4 +163,21 @@ func generateMetricsAllTypesWithDataPoints() pdata.Metrics {
 		}
 	}
 	return metricData
+}
+
+func getAttributesAllTypes() *pdata.AttributeMap {
+	am := pdata.NewAttributeMap()
+	am.InsertBool("bool-key", false)
+	am.InsertDouble("double-key", 90)
+	am.InsertInt("int-key", 91)
+	am.InsertNull("null-key")
+	am.InsertString("string-key", "string")
+	arrVal := pdata.NewAttributeValueArray()
+	extraAttr1 := pdata.NewAnyValueArray()
+	extraAttr1.Append(pdata.NewAttributeValueString("arr-string"))
+	extraAttr1.Append(pdata.NewAttributeValueInt(0))
+	extraAttr1.Append(pdata.NewAttributeValueBool(true))
+	arrVal.SetArrayVal(extraAttr1)
+	am.Insert("arr", arrVal)
+	return &am
 }
