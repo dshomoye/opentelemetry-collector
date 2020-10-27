@@ -94,6 +94,7 @@ func MetricsToSIM(md pdata.Metrics) (*[]SIMMetric, int) {
 			for k := 0; k < metrics.Len(); k++ {
 				metric := metrics.At(k)
 				if metric.IsNil() {
+					droppedMetrics++
 					continue
 				}
 				metricValues, err := valuesForMetric(metric)
@@ -312,6 +313,8 @@ func valuesForMetric(m pdata.Metric) ([]metricDP, error) {
 				mdps = append(mdps, mdpQuantile)
 			}
 		}
+	default:
+		return mdps, errors.New("invalid data type")
 	}
 	return mdps, nil
 }

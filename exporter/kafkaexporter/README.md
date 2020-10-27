@@ -15,6 +15,8 @@ The following settings can be optionally configured:
   - The following encodings are valid *only* for **traces**.
     - `jaeger_proto`: the payload is serialized to a single Jaeger proto `Span`.
     - `jaeger_json`: the payload is serialized to a single Jaeger JSON Span using `jsonpb`.
+  - The following encodings are valid *only* for **metrics**.
+    - `sim_json`: Data is encoded with [SFX datamodel](https://dev.splunk.com/observability/docs/datamodel)
 - `auth`
   - `plain_text`
     - `username`: The username to use.
