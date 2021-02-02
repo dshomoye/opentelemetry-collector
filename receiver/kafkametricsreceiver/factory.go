@@ -65,5 +65,10 @@ func createMetricsReceiver(
 	params component.ReceiverCreateParams,
 	cfg configmodels.Receiver,
 	nextConsumer consumer.MetricsConsumer) (component.MetricsReceiver, error) {
-	return nil, nil
+	c := cfg.(*Config)
+	r, err := newMetricsReceiver(*c, params, nextConsumer)
+	if err != nil {
+		return nil, err
+	}
+	return r, nil
 }
