@@ -37,11 +37,12 @@ import (
 const (
 	typeStr           = "kafkametrics"
 	defaultBroker     = "localhost:9092"
-	defaultGroupMatch = "*"
-	defaultTopicMatch = "*"
+	defaultGroupMatch = ".*"
+	defaultTopicMatch = ".*"
 	defaultClientID   = "otel-metrics-receiver"
 )
 
+// NewFactory creates kafkametrics receiver factory.
 func NewFactory() component.ReceiverFactory {
 	return receiverhelper.NewFactory(
 		typeStr,

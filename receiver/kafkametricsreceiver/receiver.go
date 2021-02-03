@@ -74,6 +74,6 @@ func newMetricsReceiver(
 	)
 }
 
-func TimeToUnixNano(t time.Time) pdata.TimestampUnixNano {
+func timeToUnixNano(t time.Time) pdata.TimestampUnixNano {
 	return pdata.TimestampUnixNano(uint64(t.UnixNano()))
 }

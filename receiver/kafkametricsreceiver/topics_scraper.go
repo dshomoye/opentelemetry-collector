@@ -30,6 +30,7 @@ type topicsScraper struct {
 	client sarama.Client
 	config Config
 	logger *zap.Logger
+	topicFilter *regexp.Regexp
 }
 
 func (s *topicsScraper) Name() string {
@@ -43,10 +44,9 @@ func (s *topicsScraper) scrape(context.Context) (pdata.MetricSlice, error) {
 		s.logger.Error("Topics Scraper: Failed to refresh topics. Error: ", zap.Error(err))
 		return metrics, err
 	}
-	topicFilter := regexp.MustCompile(s.config.TopicMatch)
 	topicIdx := 0
 	for _, topic := range topics {
-		if topicFilter.MatchString(topic) {
+		if s.topicFilter.MatchString(topic) {
 			partitions, err := s.client.Partitions(topic)
 			if err != nil {
 				s.logger.Error("Topics Scraper: Failed to get topic partitions", zap.String("Topic", topic), zap.Error(err))
@@ -54,25 +54,29 @@ func (s *topicsScraper) scrape(context.Context) (pdata.MetricSlice, error) {
 			metrics.Resize(topicIdx + 1)
 			topicPartitionsMetric := metrics.At(topicIdx)
 			topicPartitionsMetric.SetDescription("Number of partitions for this topic")
+			topicPartitionsMetric.SetName("kafkametrics_topics_partition")
+			topicPartitionsMetric.SetDataType(pdata.MetricDataTypeIntGauge)
 			topicPartitionsMetric.IntGauge().DataPoints().Resize(1)
 			dp := topicPartitionsMetric.IntGauge().DataPoints().At(0)
-			now := TimeToUnixNano(time.Now())
 			dp.SetValue(int64(len(partitions)))
-			dp.SetTimestamp(now)
+			dp.SetTimestamp(timeToUnixNano(time.Now()))
+			dp.LabelsMap().InitFromMap(map[string]string{
+				"topic": topic,
+			})
 
 			topicIdx++
-			//	TODO: insert labels for dp here?
-
 		}
 	}
 	return metrics, nil
 }
 
 func createTopicsScraper(_ context.Context, config Config, client sarama.Client, logger *zap.Logger) scraperhelper.MetricsScraper {
+	topicFilter := regexp.MustCompile(config.TopicMatch)
 	s := topicsScraper{
 		client: client,
 		config: config,
 		logger: logger,
+		topicFilter: topicFilter,
 	}
 	ms := scraperhelper.NewMetricsScraper(s.Name(), s.scrape)
 	return ms
