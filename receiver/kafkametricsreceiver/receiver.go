@@ -17,31 +17,29 @@ package kafkametricsreceiver
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/Shopify/sarama"
+	"go.uber.org/zap"
+
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/consumer/pdata"
 	"go.opentelemetry.io/collector/exporter/kafkaexporter"
-	"go.uber.org/zap"
-	"time"
+	"go.opentelemetry.io/collector/receiver/scraperhelper"
 )
 
-type KafkaMetricScraper interface {
-	Name() string
-	scrape(config Config, ctx context.Context, client sarama.Client, consumer consumer.MetricsConsumer, logger *zap.Logger) (*pdata.MetricSlice, error)
-}
+var (
+	allScrapers = map[string]func(context.Context, Config, sarama.Client, *zap.Logger) scraperhelper.MetricsScraper{
+		"topics": createTopicsScraper,
+	}
+)
 
-type kafkaMetricsConsumer struct {
-	name     string
-	consumer consumer.MetricsConsumer
-	cancel   context.CancelFunc
-	scrapers []KafkaMetricScraper
-	logger   *zap.Logger
-	client   sarama.Client
-	config   Config
-}
-
-func newMetricsReceiver(config Config, params component.ReceiverCreateParams, consumer consumer.MetricsConsumer) (*kafkaMetricsConsumer, error) {
+func newMetricsReceiver(
+	ctx context.Context,
+	config Config, params component.ReceiverCreateParams,
+	consumer consumer.MetricsConsumer,
+) (component.MetricsReceiver, error) {
 	c := sarama.NewConfig()
 	c.ClientID = config.ClientID
 	if config.ProtocolVersion != "" {
@@ -54,63 +52,26 @@ func newMetricsReceiver(config Config, params component.ReceiverCreateParams, co
 	if err := kafkaexporter.ConfigureAuthentication(config.Authentication, c); err != nil {
 		return nil, err
 	}
-	_, err := sarama.NewClient(config.Brokers, c)
+	client, err := sarama.NewClient(config.Brokers, c)
 	if err != nil {
 		return nil, err
 	}
-
-	scrapersMap := map[string]KafkaMetricScraper{
-		"topics": &topicsScraper{},
-	}
-	var scrapers []KafkaMetricScraper
+	scraperControllerOptions := make([]scraperhelper.ScraperControllerOption, 0, len(config.Scrapers))
 	for _, scraper := range config.Scrapers {
-		if s, ok := scrapersMap[scraper]; ok {
-			scrapers = append(scrapers, s)
-		}
-	}
-
-	if len(scrapers) < 1 {
-		return nil, fmt.Errorf("invalid configuration: no known scrapers found")
-	}
-
-	return &kafkaMetricsConsumer{
-		name:     config.Name(),
-		consumer: consumer,
-		scrapers: scrapers,
-		logger:   params.Logger,
-		config:   config,
-	}, nil
-}
-
-func (c *kafkaMetricsConsumer) Start(ctx context.Context, _ component.Host) error {
-	rms := pdata.NewResourceMetricsSlice()
-	rms.Resize(1)
-	rm := rms.At(0)
-	ilms := rm.InstrumentationLibraryMetrics()
-	ilms.Resize(1)
-	ilm := ilms.At(0)
-	metrics := pdata.NewMetrics()
-
-	for _, scraper := range c.scrapers {
-		m, err := scraper.scrape(c.config, ctx, c.client, c.consumer, c.logger)
-		if err != nil {
-			c.logger.Error("error occurred during scraping. ", zap.String("scraper: ", scraper.Name()), zap.Error(err))
+		if s, ok := allScrapers[scraper]; ok {
+			s := s(ctx, config, client, params.Logger)
+			scraperControllerOptions = append(scraperControllerOptions, scraperhelper.AddMetricsScraper(s))
 			continue
 		}
-		m.MoveAndAppendTo(ilm.Metrics())
+		return nil, fmt.Errorf("no scraper found for key: %s ", scraper)
 	}
-	rms.MoveAndAppendTo(metrics.ResourceMetrics())
-	err := c.consumer.ConsumeMetrics(ctx, metrics)
-	if err != nil {
-		c.logger.Error("error consuming metrics ", zap.Error(err))
-		return err
-	}
-	return nil
-}
 
-func (c *kafkaMetricsConsumer) Shutdown(ctx context.Context) error {
-	c.cancel()
-	return c.client.Close()
+	return scraperhelper.NewScraperControllerReceiver(
+		&config.ScraperControllerSettings,
+		params.Logger,
+		consumer,
+		scraperControllerOptions...,
+	)
 }
 
 func TimeToUnixNano(t time.Time) pdata.TimestampUnixNano {

@@ -15,12 +15,12 @@
 package kafkametricsreceiver
 
 import (
-	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/exporter/kafkaexporter"
+	"go.opentelemetry.io/collector/receiver/scraperhelper"
 )
 
 type Config struct {
-	configmodels.ReceiverSettings `mapstructure:",squash"`
+	scraperhelper.ScraperControllerSettings `mapstructure:",squash"`
 
 	// The list of kafka brokers (default localhost:9092)
 	Brokers []string `mapstructure:"brokers"`
@@ -40,6 +40,6 @@ type Config struct {
 	// Scrapers defines which metric data points to be captured from kafka
 	Scrapers []string `mapstructure:"scrapers"`
 
-	//ClientID is the id associated with the consumer that reads from topics in kafka.
+	// ClientID is the id associated with the consumer that reads from topics in kafka.
 	ClientID string `mapstructure:"client_id"`
 }

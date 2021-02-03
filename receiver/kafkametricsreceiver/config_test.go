@@ -15,16 +15,17 @@
 package kafkametricsreceiver
 
 import (
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"path"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"go.opentelemetry.io/collector/component/componenttest"
-	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/config/configtest"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter/kafkaexporter"
+	"go.opentelemetry.io/collector/receiver/scraperhelper"
 )
 
 func TestLoadConfig(t *testing.T) {
@@ -39,14 +40,11 @@ func TestLoadConfig(t *testing.T) {
 
 	r := cfg.Receivers[typeStr].(*Config)
 	assert.Equal(t, &Config{
-		ReceiverSettings: configmodels.ReceiverSettings{
-			NameVal: typeStr,
-			TypeVal: typeStr,
-		},
-		Brokers:         []string{"10.10.10.10:9092"},
-		ProtocolVersion: "2.0.0",
-		TopicMatch:      "test_*",
-		GroupMatch:      "test_*",
+		ScraperControllerSettings: scraperhelper.DefaultScraperControllerSettings(typeStr),
+		Brokers:                   []string{"10.10.10.10:9092"},
+		ProtocolVersion:           "2.0.0",
+		TopicMatch:                "test_*",
+		GroupMatch:                "test_*",
 		Authentication: kafkaexporter.Authentication{
 			TLS: &configtls.TLSClientSetting{
 				TLSSetting: configtls.TLSSetting{
@@ -56,7 +54,7 @@ func TestLoadConfig(t *testing.T) {
 				},
 			},
 		},
-		ClientID: defaultClientId,
+		ClientID: defaultClientID,
 		Scrapers: []string{"brokers", "topics", "consumers"},
 	}, r)
 }

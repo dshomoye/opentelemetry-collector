@@ -26,10 +26,12 @@ package kafkametricsreceiver
 
 import (
 	"context"
+
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver/receiverhelper"
+	"go.opentelemetry.io/collector/receiver/scraperhelper"
 )
 
 const (
@@ -37,7 +39,7 @@ const (
 	defaultBroker     = "localhost:9092"
 	defaultGroupMatch = "*"
 	defaultTopicMatch = "*"
-	defaultClientId   = "otel-metrics-receiver"
+	defaultClientID   = "otel-metrics-receiver"
 )
 
 func NewFactory() component.ReceiverFactory {
@@ -49,14 +51,11 @@ func NewFactory() component.ReceiverFactory {
 
 func createDefaultConfig() configmodels.Receiver {
 	return &Config{
-		ReceiverSettings: configmodels.ReceiverSettings{
-			TypeVal: typeStr,
-			NameVal: typeStr,
-		},
-		Brokers:    []string{defaultBroker},
-		GroupMatch: defaultGroupMatch,
-		TopicMatch: defaultTopicMatch,
-		ClientID:   defaultClientId,
+		ScraperControllerSettings: scraperhelper.DefaultScraperControllerSettings(typeStr),
+		Brokers:                   []string{defaultBroker},
+		GroupMatch:                defaultGroupMatch,
+		TopicMatch:                defaultTopicMatch,
+		ClientID:                  defaultClientID,
 	}
 }
 
@@ -66,7 +65,7 @@ func createMetricsReceiver(
 	cfg configmodels.Receiver,
 	nextConsumer consumer.MetricsConsumer) (component.MetricsReceiver, error) {
 	c := cfg.(*Config)
-	r, err := newMetricsReceiver(*c, params, nextConsumer)
+	r, err := newMetricsReceiver(ctx, *c, params, nextConsumer)
 	if err != nil {
 		return nil, err
 	}
