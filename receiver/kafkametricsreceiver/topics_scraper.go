@@ -21,18 +21,39 @@ import (
 	"github.com/Shopify/sarama"
 	"go.uber.org/zap"
 
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer/pdata"
 	"go.opentelemetry.io/collector/receiver/scraperhelper"
 )
 
 type topicsScraper struct {
-	client      sarama.Client
-	logger      *zap.Logger
-	topicFilter *regexp.Regexp
+	client       sarama.Client
+	logger       *zap.Logger
+	topicFilter  *regexp.Regexp
+	saramaConfig *sarama.Config
+	config       Config
 }
 
 func (s *topicsScraper) Name() string {
 	return "topics"
+}
+
+func (s *topicsScraper) start(_ context.Context, _ component.Host) error {
+	if s.client.Closed() {
+		client, err := sarama.NewClient(s.config.Brokers, s.saramaConfig)
+		if err != nil {
+			return err
+		}
+		s.client = client
+	}
+	return nil
+}
+
+func (s *topicsScraper) shutdown(context.Context) error {
+	if !s.client.Closed() {
+		return s.client.Close()
+	}
+	return nil
 }
 
 func (s *topicsScraper) scrape(context.Context) (pdata.MetricSlice, error) {
@@ -101,13 +122,24 @@ func (s *topicsScraper) scrape(context.Context) (pdata.MetricSlice, error) {
 	return metrics, nil
 }
 
-func createTopicsScraper(_ context.Context, config Config, client sarama.Client, logger *zap.Logger) scraperhelper.MetricsScraper {
+func createTopicsScraper(_ context.Context, config Config, saramaConfig *sarama.Config, logger *zap.Logger) (scraperhelper.MetricsScraper, error) {
 	topicFilter := regexp.MustCompile(config.TopicMatch)
-	s := topicsScraper{
-		client:      client,
-		logger:      logger,
-		topicFilter: topicFilter,
+	client, err := sarama.NewClient(config.Brokers, saramaConfig)
+	if err != nil {
+		return nil, err
 	}
-	ms := scraperhelper.NewMetricsScraper(s.Name(), s.scrape)
-	return ms
+	s := topicsScraper{
+		client:       client,
+		logger:       logger,
+		topicFilter:  topicFilter,
+		saramaConfig: saramaConfig,
+		config:       config,
+	}
+	ms := scraperhelper.NewMetricsScraper(
+		s.Name(),
+		s.scrape,
+		scraperhelper.WithStart(s.start),
+		scraperhelper.WithShutdown(s.shutdown),
+	)
+	return ms, nil
 }

@@ -30,7 +30,7 @@ import (
 )
 
 var (
-	allScrapers = map[string]func(context.Context, Config, sarama.Client, *zap.Logger) scraperhelper.MetricsScraper{
+	allScrapers = map[string]func(context.Context, Config, *sarama.Config, *zap.Logger) (scraperhelper.MetricsScraper, error){
 		"topics":  createTopicsScraper,
 		"brokers": createBrokersScraper,
 	}
@@ -41,26 +41,25 @@ func newMetricsReceiver(
 	config Config, params component.ReceiverCreateParams,
 	consumer consumer.MetricsConsumer,
 ) (component.MetricsReceiver, error) {
-	c := sarama.NewConfig()
-	c.ClientID = config.ClientID
+	sc := sarama.NewConfig()
+	sc.ClientID = config.ClientID
 	if config.ProtocolVersion != "" {
 		version, err := sarama.ParseKafkaVersion(config.ProtocolVersion)
 		if err != nil {
 			return nil, err
 		}
-		c.Version = version
+		sc.Version = version
 	}
-	if err := kafkaexporter.ConfigureAuthentication(config.Authentication, c); err != nil {
-		return nil, err
-	}
-	client, err := sarama.NewClient(config.Brokers, c)
-	if err != nil {
+	if err := kafkaexporter.ConfigureAuthentication(config.Authentication, sc); err != nil {
 		return nil, err
 	}
 	scraperControllerOptions := make([]scraperhelper.ScraperControllerOption, 0, len(config.Scrapers))
 	for _, scraper := range config.Scrapers {
 		if s, ok := allScrapers[scraper]; ok {
-			s := s(ctx, config, client, params.Logger)
+			s, err := s(ctx, config, sc, params.Logger)
+			if err != nil {
+				return nil, err
+			}
 			scraperControllerOptions = append(scraperControllerOptions, scraperhelper.AddMetricsScraper(s))
 			continue
 		}

@@ -21,6 +21,7 @@ import (
 	"github.com/Shopify/sarama"
 	"go.uber.org/zap"
 
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer/pdata"
 	"go.opentelemetry.io/collector/receiver/scraperhelper"
 )
@@ -31,12 +32,32 @@ const (
 )
 
 type brokersScraper struct {
-	client sarama.Client
-	logger *zap.Logger
+	client       sarama.Client
+	logger       *zap.Logger
+	saramaConfig *sarama.Config
+	config       Config
 }
 
 func (s *brokersScraper) Name() string {
 	return "brokers"
+}
+
+func (s *brokersScraper) start(_ context.Context, _ component.Host) error {
+	if s.client.Closed() {
+		client, err := sarama.NewClient(s.config.Brokers, s.saramaConfig)
+		if err != nil {
+			return err
+		}
+		s.client = client
+	}
+	return nil
+}
+
+func (s *brokersScraper) shutdown(context.Context) error {
+	if !s.client.Closed() {
+		return s.client.Close()
+	}
+	return nil
 }
 
 func (s *brokersScraper) scrape(context.Context) (pdata.MetricSlice, error) {
@@ -54,11 +75,22 @@ func (s *brokersScraper) scrape(context.Context) (pdata.MetricSlice, error) {
 	return metrics, nil
 }
 
-func createBrokersScraper(_ context.Context, _ Config, client sarama.Client, logger *zap.Logger) scraperhelper.MetricsScraper {
-	s := brokersScraper{
-		client: client,
-		logger: logger,
+func createBrokersScraper(_ context.Context, config Config, saramaConfig *sarama.Config, logger *zap.Logger) (scraperhelper.MetricsScraper, error) {
+	client, err := sarama.NewClient(config.Brokers, saramaConfig)
+	if err != nil {
+		return nil, err
 	}
-	ms := scraperhelper.NewMetricsScraper(s.Name(), s.scrape)
-	return ms
+	s := brokersScraper{
+		client:       client,
+		logger:       logger,
+		config:       config,
+		saramaConfig: saramaConfig,
+	}
+	ms := scraperhelper.NewMetricsScraper(
+		s.Name(),
+		s.scrape,
+		scraperhelper.WithStart(s.start),
+		scraperhelper.WithShutdown(s.shutdown),
+	)
+	return ms, nil
 }
