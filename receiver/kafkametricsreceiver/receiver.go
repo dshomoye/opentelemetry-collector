@@ -31,7 +31,8 @@ import (
 
 var (
 	allScrapers = map[string]func(context.Context, Config, sarama.Client, *zap.Logger) scraperhelper.MetricsScraper{
-		"topics": createTopicsScraper,
+		"topics":  createTopicsScraper,
+		"brokers": createBrokersScraper,
 	}
 )
 

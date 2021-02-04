@@ -15,9 +15,10 @@
 package kafkametricsreceiver
 
 import (
-	"go.opentelemetry.io/collector/consumer/pdata"
 	"strconv"
 	"time"
+
+	"go.opentelemetry.io/collector/consumer/pdata"
 )
 
 const (
@@ -51,11 +52,11 @@ func initializeTopicMetrics(metrics *pdata.MetricSlice) *topicMetrics {
 	replicas := metrics.At(3)
 	replicasInSync := metrics.At(4)
 
-	initializeMetric(&partitions, partitionsName, partitionsDescription, pdata.MetricDataTypeIntGauge)
-	initializeMetric(&currentOffset, currentOffsetName, currentOffsetDescription, pdata.MetricDataTypeIntGauge)
-	initializeMetric(&oldestOffset, oldestOffsetName, oldestOffsetDescription, pdata.MetricDataTypeIntGauge)
-	initializeMetric(&replicas, replicasName, replicasDescription, pdata.MetricDataTypeIntGauge)
-	initializeMetric(&replicasInSync, replicasInSyncName, replicasInSyncDescription, pdata.MetricDataTypeIntGauge)
+	initializeMetric(&partitions, partitionsName, partitionsDescription)
+	initializeMetric(&currentOffset, currentOffsetName, currentOffsetDescription)
+	initializeMetric(&oldestOffset, oldestOffsetName, oldestOffsetDescription)
+	initializeMetric(&replicas, replicasName, replicasDescription)
+	initializeMetric(&replicasInSync, replicasInSyncName, replicasInSyncDescription)
 
 	return &topicMetrics{
 		partitions:     &partitions,
@@ -66,10 +67,10 @@ func initializeTopicMetrics(metrics *pdata.MetricSlice) *topicMetrics {
 	}
 }
 
-func initializeMetric(m *pdata.Metric, name string, description string, dataType pdata.MetricDataType) {
+func initializeMetric(m *pdata.Metric, name string, description string) {
 	m.SetName(name)
 	m.SetDescription(description)
-	m.SetDataType(dataType)
+	m.SetDataType(pdata.MetricDataTypeIntGauge)
 }
 
 func addPartitionsToMetric(topic string, partitions int64, m *pdata.Metric, topicIdx int) {

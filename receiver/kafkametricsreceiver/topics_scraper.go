@@ -16,9 +16,10 @@ package kafkametricsreceiver
 
 import (
 	"context"
+	"regexp"
+
 	"github.com/Shopify/sarama"
 	"go.uber.org/zap"
-	"regexp"
 
 	"go.opentelemetry.io/collector/consumer/pdata"
 	"go.opentelemetry.io/collector/receiver/scraperhelper"

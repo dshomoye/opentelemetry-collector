@@ -18,6 +18,7 @@ Optional Settings (with defaults):
 - `topic_match` (default = *): regex pattern of topics to filter for metrics collection.
 - `group_match` (default = *): regex pattern of consumer groups to filter on for metrics.
 - `client_id` (default = otel-metrics-receiver): consumer client id
+- `collection_interval` (default = 1m): frequency of metric collection/scraping.
 - `auth` (default none)
     - `plain_text`
         - `username`: The username to use.
