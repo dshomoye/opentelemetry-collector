@@ -16,12 +16,9 @@ package kafkametricsreceiver
 
 import (
 	"context"
-	"regexp"
-	"strconv"
-	"time"
-
 	"github.com/Shopify/sarama"
 	"go.uber.org/zap"
+	"regexp"
 
 	"go.opentelemetry.io/collector/consumer/pdata"
 	"go.opentelemetry.io/collector/receiver/scraperhelper"
@@ -44,12 +41,13 @@ func (s *topicsScraper) scrape(context.Context) (pdata.MetricSlice, error) {
 		s.logger.Error("Topics Scraper: Failed to refresh topics. Error: ", zap.Error(err))
 		return metrics, err
 	}
-	metrics.Resize(2)
 
-	topicPartitionsMetric := metrics.At(0)
-	topicCurrentOffsetMetric := metrics.At(1)
-	initTopicPartitionsMetric(&topicPartitionsMetric)
-	initTopicCurrentOffsetMetric(&topicCurrentOffsetMetric)
+	allMetrics := initializeTopicMetrics(&metrics)
+	partitionsMetric := allMetrics.partitions
+	currentOffsetMetric := allMetrics.currentOffset
+	oldestOffsetMetric := allMetrics.oldestOffset
+	replicasMetric := allMetrics.replicas
+	replicasInSyncMetric := allMetrics.replicasInSync
 
 	var matchedTopics []string
 	for _, t := range topics {
@@ -57,7 +55,7 @@ func (s *topicsScraper) scrape(context.Context) (pdata.MetricSlice, error) {
 			matchedTopics = append(matchedTopics, t)
 		}
 	}
-	topicPartitionsMetric.IntGauge().DataPoints().Resize(len(matchedTopics))
+	partitionsMetric.IntGauge().DataPoints().Resize(len(matchedTopics))
 
 	for topicIdx, topic := range matchedTopics {
 		partitions, err := s.client.Partitions(topic)
@@ -66,55 +64,40 @@ func (s *topicsScraper) scrape(context.Context) (pdata.MetricSlice, error) {
 			s.logger.Error("topics scraper: failed to get topic partitions", zap.String("Topic", topic), zap.Error(err))
 			continue
 		}
-		addPartitionCountToMetric(topic, int64(len(partitions)), &topicPartitionsMetric, topicIdx)
+		addPartitionsToMetric(topic, int64(len(partitions)), partitionsMetric, topicIdx)
 
 		for _, partition := range partitions {
 			currentOffset, err := s.client.GetOffset(topic, partition, sarama.OffsetNewest)
 			if err != nil {
-				s.logger.Error(
-					"topics scraper: failed to get offset",
-					zap.String("topic ", topic),
-					zap.String("partition ", string(partition)),
-					zap.Error(err))
-				continue
+				s.logger.Error("topics scraper: failed to get current offset", zap.String("topic ", topic), zap.String("partition ", string(partition)), zap.Error(err))
+			} else {
+				addPartitionDPToMetric(topic, partition, currentOffset, currentOffsetMetric)
 			}
-			addTopicCurrentOffsetToMetric(topic, partition, currentOffset, &topicCurrentOffsetMetric)
+
+			oldestOffset, err := s.client.GetOffset(topic, partition, sarama.OffsetOldest)
+			if err != nil {
+				s.logger.Error("topics scraper: failed to get oldest offset", zap.String("topic ", topic), zap.String("partition ", string(partition)), zap.Error(err))
+			} else {
+				addPartitionDPToMetric(topic, partition, oldestOffset, oldestOffsetMetric)
+			}
+
+			replicas, err := s.client.Replicas(topic, partition)
+			if err != nil {
+				s.logger.Error("topics scraper: failed to get replicas", zap.String("topic ", topic), zap.String("partition ", string(partition)), zap.Error(err))
+			} else {
+				addPartitionDPToMetric(topic, partition, int64(len(replicas)), replicasMetric)
+			}
+
+			replicasInSync, err := s.client.InSyncReplicas(topic, partition)
+			if err != nil {
+				s.logger.Error("topics scraper: failed to get in-sync replicas", zap.String("topic ", topic), zap.String("partition ", string(partition)), zap.Error(err))
+
+			} else {
+				addPartitionDPToMetric(topic, partition, int64(len(replicasInSync)), replicasInSyncMetric)
+			}
 		}
 	}
 	return metrics, nil
-}
-
-func initTopicPartitionsMetric(m *pdata.Metric) {
-	m.SetName("kafka_topics_partition")
-	m.SetDescription("number of partitions for this topic")
-	m.SetDataType(pdata.MetricDataTypeIntGauge)
-}
-
-func addPartitionCountToMetric(topic string, partitions int64, m *pdata.Metric, topicIdx int) {
-	dp := m.IntGauge().DataPoints().At(topicIdx)
-	dp.SetValue(partitions)
-	dp.SetTimestamp(timeToUnixNano(time.Now()))
-	dp.LabelsMap().InitFromMap(map[string]string{
-		"topic": topic,
-	})
-}
-
-func initTopicCurrentOffsetMetric(m *pdata.Metric) {
-	m.SetName("kafka_topics_current_offset")
-	m.SetDescription("current offset of topic/partition")
-	m.SetDataType(pdata.MetricDataTypeIntGauge)
-}
-
-func addTopicCurrentOffsetToMetric(topic string, partition int32, currentOffset int64, m *pdata.Metric) {
-	dpLen := m.IntGauge().DataPoints().Len()
-	m.IntGauge().DataPoints().Resize(dpLen + 1)
-	dp := m.IntGauge().DataPoints().At(dpLen)
-	dp.SetValue(currentOffset)
-	dp.SetTimestamp(timeToUnixNano(time.Now()))
-	dp.LabelsMap().InitFromMap(map[string]string{
-		"topic":     topic,
-		"partition": strconv.FormatInt(int64(partition), 10),
-	})
 }
 
 func createTopicsScraper(_ context.Context, config Config, client sarama.Client, logger *zap.Logger) scraperhelper.MetricsScraper {
