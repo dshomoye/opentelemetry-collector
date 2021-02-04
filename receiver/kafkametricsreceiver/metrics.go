@@ -23,15 +23,17 @@ import (
 
 const (
 	partitionsName            = "kafka_topic_partitions"
-	currentOffsetName         = "kafka_topic_current_offset"
-	oldestOffsetName          = "kafka_topic_oldest_offset"
-	replicasName              = "kafka_topic_replicas"
-	replicasInSyncName        = "kafka_topic_replicas_in_sync"
 	partitionsDescription     = "number of partitions for this topic"
+	currentOffsetName         = "kafka_topic_current_offset"
 	currentOffsetDescription  = "current offset of topic/partition"
+	oldestOffsetName          = "kafka_topic_oldest_offset"
 	oldestOffsetDescription   = "oldest offset of topic/partition"
+	replicasName              = "kafka_topic_replicas"
 	replicasDescription       = "number of replicas for topic/partition"
+	replicasInSyncName        = "kafka_topic_replicas_in_sync"
 	replicasInSyncDescription = "number of in-sync replicas for topic/partition"
+	groupMembersName          = "kafka_consumer_group_members"
+	groupMembersDescription   = "number of members in consumer group"
 )
 
 type topicMetrics struct {
@@ -40,6 +42,10 @@ type topicMetrics struct {
 	oldestOffset   *pdata.Metric
 	replicas       *pdata.Metric
 	replicasInSync *pdata.Metric
+}
+
+type consumerMetrics struct {
+	groupMembers *pdata.Metric
 }
 
 func initializeTopicMetrics(metrics *pdata.MetricSlice) *topicMetrics {
@@ -96,4 +102,28 @@ func addPartitionDPToMetric(topic string, partition int32, value int64, m *pdata
 
 func int32ToStr(i int32) string {
 	return strconv.FormatInt(int64(i), 10)
+}
+
+func initializeConsumerMetrics(metrics *pdata.MetricSlice) *consumerMetrics {
+	metrics.Resize(0)
+	metrics.Resize(1)
+
+	groupMembers := metrics.At(0)
+
+	initializeMetric(&groupMembers, groupMembersName, groupMembersDescription)
+
+	return &consumerMetrics{
+		groupMembers: &groupMembers,
+	}
+}
+
+func addGroupMembersToMetric(groupId string, members int64, m *pdata.Metric) {
+	dpLen := m.IntGauge().DataPoints().Len()
+	m.IntGauge().DataPoints().Resize(dpLen + 1)
+	dp := m.IntGauge().DataPoints().At(dpLen)
+	dp.SetValue(members)
+	dp.SetTimestamp(timeToUnixNano(time.Now()))
+	dp.LabelsMap().InitFromMap(map[string]string{
+		"groupId": groupId,
+	})
 }

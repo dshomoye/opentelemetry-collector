@@ -135,11 +135,10 @@ func createTopicsScraper(_ context.Context, config Config, saramaConfig *sarama.
 		saramaConfig: saramaConfig,
 		config:       config,
 	}
-	ms := scraperhelper.NewMetricsScraper(
+	return scraperhelper.NewMetricsScraper(
 		s.Name(),
 		s.scrape,
 		scraperhelper.WithStart(s.start),
 		scraperhelper.WithShutdown(s.shutdown),
-	)
-	return ms, nil
+	), nil
 }
