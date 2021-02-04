@@ -17,6 +17,7 @@ package kafkametricsreceiver
 import (
 	"context"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/Shopify/sarama"
@@ -27,9 +28,8 @@ import (
 )
 
 type topicsScraper struct {
-	client sarama.Client
-	config Config
-	logger *zap.Logger
+	client      sarama.Client
+	logger      *zap.Logger
 	topicFilter *regexp.Regexp
 }
 
@@ -44,38 +44,84 @@ func (s *topicsScraper) scrape(context.Context) (pdata.MetricSlice, error) {
 		s.logger.Error("Topics Scraper: Failed to refresh topics. Error: ", zap.Error(err))
 		return metrics, err
 	}
-	topicIdx := 0
-	for _, topic := range topics {
-		if s.topicFilter.MatchString(topic) {
-			partitions, err := s.client.Partitions(topic)
-			if err != nil {
-				s.logger.Error("Topics Scraper: Failed to get topic partitions", zap.String("Topic", topic), zap.Error(err))
-			}
-			metrics.Resize(topicIdx + 1)
-			topicPartitionsMetric := metrics.At(topicIdx)
-			topicPartitionsMetric.SetDescription("Number of partitions for this topic")
-			topicPartitionsMetric.SetName("kafkametrics_topics_partition")
-			topicPartitionsMetric.SetDataType(pdata.MetricDataTypeIntGauge)
-			topicPartitionsMetric.IntGauge().DataPoints().Resize(1)
-			dp := topicPartitionsMetric.IntGauge().DataPoints().At(0)
-			dp.SetValue(int64(len(partitions)))
-			dp.SetTimestamp(timeToUnixNano(time.Now()))
-			dp.LabelsMap().InitFromMap(map[string]string{
-				"topic": topic,
-			})
+	metrics.Resize(2)
 
-			topicIdx++
+	topicPartitionsMetric := metrics.At(0)
+	topicCurrentOffsetMetric := metrics.At(1)
+	initTopicPartitionsMetric(&topicPartitionsMetric)
+	initTopicCurrentOffsetMetric(&topicCurrentOffsetMetric)
+
+	var matchedTopics []string
+	for _, t := range topics {
+		if s.topicFilter.MatchString(t) {
+			matchedTopics = append(matchedTopics, t)
+		}
+	}
+	topicPartitionsMetric.IntGauge().DataPoints().Resize(len(matchedTopics))
+
+	for topicIdx, topic := range matchedTopics {
+		partitions, err := s.client.Partitions(topic)
+
+		if err != nil {
+			s.logger.Error("topics scraper: failed to get topic partitions", zap.String("Topic", topic), zap.Error(err))
+			continue
+		}
+		addPartitionCountToMetric(topic, int64(len(partitions)), &topicPartitionsMetric, topicIdx)
+
+		for _, partition := range partitions {
+			currentOffset, err := s.client.GetOffset(topic, partition, sarama.OffsetNewest)
+			if err != nil {
+				s.logger.Error(
+					"topics scraper: failed to get offset",
+					zap.String("topic ", topic),
+					zap.String("partition ", string(partition)),
+					zap.Error(err))
+				continue
+			}
+			addTopicCurrentOffsetToMetric(topic, partition, currentOffset, &topicCurrentOffsetMetric)
 		}
 	}
 	return metrics, nil
 }
 
+func initTopicPartitionsMetric(m *pdata.Metric) {
+	m.SetName("kafka_topics_partition")
+	m.SetDescription("number of partitions for this topic")
+	m.SetDataType(pdata.MetricDataTypeIntGauge)
+}
+
+func addPartitionCountToMetric(topic string, partitions int64, m *pdata.Metric, topicIdx int) {
+	dp := m.IntGauge().DataPoints().At(topicIdx)
+	dp.SetValue(partitions)
+	dp.SetTimestamp(timeToUnixNano(time.Now()))
+	dp.LabelsMap().InitFromMap(map[string]string{
+		"topic": topic,
+	})
+}
+
+func initTopicCurrentOffsetMetric(m *pdata.Metric) {
+	m.SetName("kafka_topics_current_offset")
+	m.SetDescription("current offset of topic/partition")
+	m.SetDataType(pdata.MetricDataTypeIntGauge)
+}
+
+func addTopicCurrentOffsetToMetric(topic string, partition int32, currentOffset int64, m *pdata.Metric) {
+	dpLen := m.IntGauge().DataPoints().Len()
+	m.IntGauge().DataPoints().Resize(dpLen + 1)
+	dp := m.IntGauge().DataPoints().At(dpLen)
+	dp.SetValue(currentOffset)
+	dp.SetTimestamp(timeToUnixNano(time.Now()))
+	dp.LabelsMap().InitFromMap(map[string]string{
+		"topic":     topic,
+		"partition": strconv.FormatInt(int64(partition), 10),
+	})
+}
+
 func createTopicsScraper(_ context.Context, config Config, client sarama.Client, logger *zap.Logger) scraperhelper.MetricsScraper {
 	topicFilter := regexp.MustCompile(config.TopicMatch)
 	s := topicsScraper{
-		client: client,
-		config: config,
-		logger: logger,
+		client:      client,
+		logger:      logger,
 		topicFilter: topicFilter,
 	}
 	ms := scraperhelper.NewMetricsScraper(s.Name(), s.scrape)
