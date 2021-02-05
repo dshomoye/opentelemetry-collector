@@ -22,6 +22,7 @@ import (
 )
 
 const (
+	// topic metrics
 	partitionsName            = "kafka_topic_partitions"
 	partitionsDescription     = "number of partitions for this topic"
 	currentOffsetName         = "kafka_topic_current_offset"
@@ -32,8 +33,20 @@ const (
 	replicasDescription       = "number of replicas for topic/partition"
 	replicasInSyncName        = "kafka_topic_replicas_in_sync"
 	replicasInSyncDescription = "number of in-sync replicas for topic/partition"
+	// consumer metrics
 	groupMembersName          = "kafka_consumer_group_members"
 	groupMembersDescription   = "number of members in consumer group"
+	consumerOffsetName        = "kafka_consumer_offset"
+	consumerOffsetDescription = "the current offset for consumer group"
+	consumerLagName           = "kafka_consumer_lag"
+	consumerLagDescription    = "the current lag in a partition for a consumer group"
+	lagSumName                = "kafka_consumer_lag_sum"
+	lagSumDescription         = "sum of consumer lag for a topic"
+	offsetSumName             = "kafka_consumer_offset_sum"
+	offsetSumDescription      = "sum of consumer offset for a topic"
+	// broker metrics
+	brokersName        = "kafka_brokers"
+	brokersDescription = "number of brokers in cluster"
 )
 
 type topicMetrics struct {
@@ -45,7 +58,15 @@ type topicMetrics struct {
 }
 
 type consumerMetrics struct {
-	groupMembers *pdata.Metric
+	groupMembers   *pdata.Metric
+	consumerOffset *pdata.Metric
+	consumerLag    *pdata.Metric
+	lagSum         *pdata.Metric
+	offsetSum      *pdata.Metric
+}
+
+type brokerMetrics struct {
+	brokers *pdata.Metric
 }
 
 func initializeTopicMetrics(metrics *pdata.MetricSlice) *topicMetrics {
@@ -71,6 +92,41 @@ func initializeTopicMetrics(metrics *pdata.MetricSlice) *topicMetrics {
 		replicas:       &replicas,
 		replicasInSync: &replicasInSync,
 	}
+}
+
+func initializeConsumerMetrics(metrics *pdata.MetricSlice) *consumerMetrics {
+	metrics.Resize(0)
+	metrics.Resize(5)
+
+	groupMembers := metrics.At(0)
+	consumerOffset := metrics.At(1)
+	consumerLag := metrics.At(2)
+	lagSum := metrics.At(3)
+	offsetSum := metrics.At(4)
+
+	initializeMetric(&groupMembers, groupMembersName, groupMembersDescription)
+	initializeMetric(&consumerOffset, consumerOffsetName, consumerOffsetDescription)
+	initializeMetric(&consumerLag, consumerLagName, consumerLagDescription)
+	initializeMetric(&lagSum, lagSumName, lagSumDescription)
+	initializeMetric(&offsetSum, offsetSumName, offsetSumDescription)
+
+	return &consumerMetrics{
+		groupMembers:   &groupMembers,
+		consumerOffset: &consumerOffset,
+		consumerLag:    &consumerLag,
+		lagSum:         &lagSum,
+		offsetSum:      &offsetSum,
+	}
+}
+
+func initializeBrokerMetrics(metrics *pdata.MetricSlice) *brokerMetrics {
+	metrics.Resize(0)
+	metrics.Resize(1)
+
+	brokers := metrics.At(0)
+	initializeMetric(&brokers, brokersName, brokersDescription)
+
+	return &brokerMetrics{brokers: &brokers}
 }
 
 func initializeMetric(m *pdata.Metric, name string, description string) {
@@ -100,30 +156,50 @@ func addPartitionDPToMetric(topic string, partition int32, value int64, m *pdata
 	})
 }
 
-func int32ToStr(i int32) string {
-	return strconv.FormatInt(int64(i), 10)
+func addBrokersToMetric(brokers int64, m *pdata.Metric) {
+	dpLen := m.IntGauge().DataPoints().Len()
+	m.IntGauge().DataPoints().Resize(dpLen + 1)
+	dp := m.IntGauge().DataPoints().At(dpLen)
+	dp.SetValue(brokers)
+	dp.SetTimestamp(timeToUnixNano(time.Now()))
 }
 
-func initializeConsumerMetrics(metrics *pdata.MetricSlice) *consumerMetrics {
-	metrics.Resize(0)
-	metrics.Resize(1)
-
-	groupMembers := metrics.At(0)
-
-	initializeMetric(&groupMembers, groupMembersName, groupMembersDescription)
-
-	return &consumerMetrics{
-		groupMembers: &groupMembers,
-	}
-}
-
-func addGroupMembersToMetric(groupId string, members int64, m *pdata.Metric) {
+func addGroupMembersToMetric(groupID string, members int64, m *pdata.Metric) {
 	dpLen := m.IntGauge().DataPoints().Len()
 	m.IntGauge().DataPoints().Resize(dpLen + 1)
 	dp := m.IntGauge().DataPoints().At(dpLen)
 	dp.SetValue(members)
 	dp.SetTimestamp(timeToUnixNano(time.Now()))
 	dp.LabelsMap().InitFromMap(map[string]string{
-		"groupId": groupId,
+		"group": groupID,
 	})
+}
+
+func addConsumerPartitionDPToMetric(groupID string, topic string, partition int32, value int64, m *pdata.Metric) {
+	dpLen := m.IntGauge().DataPoints().Len()
+	m.IntGauge().DataPoints().Resize(dpLen + 1)
+	dp := m.IntGauge().DataPoints().At(dpLen)
+	dp.SetValue(value)
+	dp.SetTimestamp(timeToUnixNano(time.Now()))
+	dp.LabelsMap().InitFromMap(map[string]string{
+		"group":     groupID,
+		"topic":     topic,
+		"partition": int32ToStr(partition),
+	})
+}
+
+func addConsumerSumDPToMetric(groupID string, topic string, value int64, m *pdata.Metric) {
+	dpLen := m.IntGauge().DataPoints().Len()
+	m.IntGauge().DataPoints().Resize(dpLen + 1)
+	dp := m.IntGauge().DataPoints().At(dpLen)
+	dp.SetValue(value)
+	dp.SetTimestamp(timeToUnixNano(time.Now()))
+	dp.LabelsMap().InitFromMap(map[string]string{
+		"group": groupID,
+		"topic": topic,
+	})
+}
+
+func int32ToStr(i int32) string {
+	return strconv.FormatInt(int64(i), 10)
 }

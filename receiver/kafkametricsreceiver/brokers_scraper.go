@@ -16,7 +16,6 @@ package kafkametricsreceiver
 
 import (
 	"context"
-	"time"
 
 	"github.com/Shopify/sarama"
 	"go.uber.org/zap"
@@ -24,11 +23,6 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer/pdata"
 	"go.opentelemetry.io/collector/receiver/scraperhelper"
-)
-
-const (
-	brokersMetricName        = "kafka_brokers"
-	brokersMetricDescription = "number of brokers in the cluster"
 )
 
 type brokersScraper struct {
@@ -63,15 +57,8 @@ func (s *brokersScraper) shutdown(context.Context) error {
 func (s *brokersScraper) scrape(context.Context) (pdata.MetricSlice, error) {
 	brokers := s.client.Brokers()
 	metrics := pdata.NewMetricSlice()
-	metrics.Resize(1)
-	brokersMetrics := metrics.At(0)
-	brokersMetrics.SetDescription(brokersMetricDescription)
-	brokersMetrics.SetName(brokersMetricName)
-	brokersMetrics.SetDataType(pdata.MetricDataTypeIntGauge)
-	brokersMetrics.IntGauge().DataPoints().Resize(1)
-	dp := brokersMetrics.IntGauge().DataPoints().At(0)
-	dp.SetValue(int64(len(brokers)))
-	dp.SetTimestamp(timeToUnixNano(time.Now()))
+	allMetrics := initializeBrokerMetrics(&metrics)
+	addBrokersToMetric(int64(len(brokers)), allMetrics.brokers)
 	return metrics, nil
 }
 
