@@ -36,13 +36,13 @@ const (
 	// consumer metrics
 	groupMembersName          = "kafka_consumer_group_members"
 	groupMembersDescription   = "number of members in consumer group"
-	consumerOffsetName        = "kafka_consumer_offset"
+	consumerOffsetName        = "kafka_consumer_group_offset"
 	consumerOffsetDescription = "the current offset for consumer group"
-	consumerLagName           = "kafka_consumer_lag"
+	consumerLagName           = "kafka_consumer_group_lag"
 	consumerLagDescription    = "the current lag in a partition for a consumer group"
-	lagSumName                = "kafka_consumer_lag_sum"
+	lagSumName                = "kafka_consumer_group_lag_sum"
 	lagSumDescription         = "sum of consumer lag for a topic"
-	offsetSumName             = "kafka_consumer_offset_sum"
+	offsetSumName             = "kafka_consumer_group_offset_sum"
 	offsetSumDescription      = "sum of consumer offset for a topic"
 	// broker metrics
 	brokersName        = "kafka_brokers"
