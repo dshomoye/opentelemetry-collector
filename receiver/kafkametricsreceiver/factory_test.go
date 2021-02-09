@@ -15,10 +15,12 @@
 package kafkametricsreceiver
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configcheck"
 )
 
@@ -27,4 +29,15 @@ func TestCreateDefaultConfig(t *testing.T) {
 	cfg := factory.CreateDefaultConfig()
 	assert.NotNil(t, cfg, "default config not created")
 	assert.NoError(t, configcheck.ValidateConfig(cfg))
+}
+
+func TestCreateMetricsReceiver(t *testing.T) {
+	factory := NewFactory()
+	cfg := factory.CreateDefaultConfig().(*Config)
+	cfg.Brokers = []string{"invalid:9092"}
+	cfg.ProtocolVersion = "2.0.0"
+	cfg.Scrapers = []string{"topics"}
+	r, err := createMetricsReceiver(context.Background(), component.ReceiverCreateParams{}, cfg, nil)
+	assert.Error(t, err)
+	assert.Nil(t, r)
 }

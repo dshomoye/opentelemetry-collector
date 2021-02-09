@@ -17,14 +17,12 @@ package kafkametricsreceiver
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/Shopify/sarama"
 	"go.uber.org/zap"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/consumer/pdata"
 	"go.opentelemetry.io/collector/exporter/kafkaexporter"
 	"go.opentelemetry.io/collector/receiver/scraperhelper"
 )
@@ -39,7 +37,8 @@ var (
 
 func newMetricsReceiver(
 	ctx context.Context,
-	config Config, params component.ReceiverCreateParams,
+	config Config,
+	params component.ReceiverCreateParams,
 	consumer consumer.MetricsConsumer,
 ) (component.MetricsReceiver, error) {
 	sc := sarama.NewConfig()
@@ -64,7 +63,7 @@ func newMetricsReceiver(
 			scraperControllerOptions = append(scraperControllerOptions, scraperhelper.AddMetricsScraper(s))
 			continue
 		}
-		return nil, fmt.Errorf("no scraper found for key: %s ", scraper)
+		return nil, fmt.Errorf("no scraper found for key: %s", scraper)
 	}
 
 	return scraperhelper.NewScraperControllerReceiver(
@@ -73,8 +72,4 @@ func newMetricsReceiver(
 		consumer,
 		scraperControllerOptions...,
 	)
-}
-
-func timeToUnixNano(t time.Time) pdata.TimestampUnixNano {
-	return pdata.TimestampUnixNano(uint64(t.UnixNano()))
 }

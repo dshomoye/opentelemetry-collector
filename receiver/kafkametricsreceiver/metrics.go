@@ -203,3 +203,7 @@ func addConsumerSumDPToMetric(groupID string, topic string, value int64, m *pdat
 func int32ToStr(i int32) string {
 	return strconv.FormatInt(int64(i), 10)
 }
+
+func timeToUnixNano(t time.Time) pdata.TimestampUnixNano {
+	return pdata.TimestampUnixNano(uint64(t.UnixNano()))
+}
