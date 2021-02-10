@@ -24,13 +24,10 @@ import (
 	"go.opentelemetry.io/collector/receiver/scraperhelper"
 )
 
-var newSaramaClient = sarama.NewClient
-
 type brokerScraper struct {
-	client       sarama.Client
-	logger       *zap.Logger
-	saramaConfig *sarama.Config
-	config       Config
+	client sarama.Client
+	logger *zap.Logger
+	config Config
 }
 
 func (s *brokerScraper) Name() string {
@@ -53,15 +50,14 @@ func (s *brokerScraper) scrape(context.Context) (pdata.MetricSlice, error) {
 }
 
 func createBrokersScraper(_ context.Context, config Config, saramaConfig *sarama.Config, logger *zap.Logger) (scraperhelper.MetricsScraper, error) {
-	client, err := newSaramaClient(config.Brokers, saramaConfig)
+	client, err := sarama.NewClient(config.Brokers, saramaConfig)
 	if err != nil {
 		return nil, err
 	}
 	s := brokerScraper{
-		client:       client,
-		logger:       logger,
-		config:       config,
-		saramaConfig: saramaConfig,
+		client: client,
+		logger: logger,
+		config: config,
 	}
 	ms := scraperhelper.NewMetricsScraper(
 		s.Name(),

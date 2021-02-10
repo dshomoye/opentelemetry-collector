@@ -16,69 +16,46 @@ package kafkametricsreceiver
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
 	"testing"
 
 	"github.com/Shopify/sarama"
-	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 )
 
-type mockSaramaClient struct {
-	mock.Mock
-	sarama.Client
-
-	getBrokers func() []*sarama.Broker
-}
-
-func (s *mockSaramaClient) Closed() bool {
-	s.Called()
-	return false
-}
-
-func (s *mockSaramaClient) Close() error {
-	s.Called()
-	return nil
-}
-
-func (s *mockSaramaClient) Brokers() []*sarama.Broker {
-	s.Called()
-	return s.getBrokers()
-}
-
 func TestBrokerShutdown(t *testing.T) {
-	client := new(mockSaramaClient)
+	client := getMockClient()
 	client.Mock.
 		On("Close").Return(nil).
 		On("Closed").Return(false)
 	scraper := brokerScraper{
-		client:       client,
-		logger:       zap.NewNop(),
-		saramaConfig: nil,
-		config:       Config{},
+		client: client,
+		logger: zap.NewNop(),
+		config: Config{},
 	}
 	_ = scraper.shutdown(context.Background())
 	client.AssertExpectations(t)
 }
 
-func TestBrokerScrape_gets_brokers(t *testing.T) {
-	client := new(mockSaramaClient)
-	r := sarama.NewBroker("test")
+func TestBrokerScraper_Name(t *testing.T) {
+	s := brokerScraper{}
+	assert.Equal(t, s.Name(), "brokers")
+}
+
+func TestBrokerScraper_gets_brokers(t *testing.T) {
+	client := getMockClient()
+	r := sarama.NewBroker(testBroker)
 	testBrokers := make([]*sarama.Broker, 1)
 	testBrokers[0] = r
-	client.getBrokers = func() []*sarama.Broker {
-		return testBrokers
-	}
 	client.Mock.On("Brokers").Return(testBrokers)
 	scraper := brokerScraper{
-		client:       client,
-		logger:       zap.NewNop(),
-		saramaConfig: nil,
-		config:       Config{},
+		client: client,
+		logger: zap.NewNop(),
+		config: Config{},
 	}
 	ms, err := scraper.scrape(context.Background())
 	client.AssertExpectations(t)
 	assert.Nil(t, err)
 	m := ms.At(0)
-	assert.Equal(t, m.IntGauge().DataPoints().At(0).Value(), int64(1))
+	assert.Equal(t, m.IntGauge().DataPoints().At(0).Value(), int64(len(testBrokers)))
 }
