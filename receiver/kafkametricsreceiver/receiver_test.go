@@ -17,6 +17,9 @@ package kafkametricsreceiver
 import (
 	"context"
 	"fmt"
+	"github.com/Shopify/sarama"
+	"go.opentelemetry.io/collector/receiver/scraperhelper"
+	"go.uber.org/zap"
 	"testing"
 
 	"go.opentelemetry.io/collector/component"
@@ -37,13 +40,18 @@ func TestNewReceiver_invalid_version_err(t *testing.T) {
 func TestNewReceiver_invalid_scraper_error(t *testing.T) {
 	c := createDefaultConfig().(*Config)
 	c.Scrapers = []string{"topics", "brokers", "consumers", "cpu"}
+	mockScraper := func(context.Context, Config, *sarama.Config, *zap.Logger) (scraperhelper.MetricsScraper, error) {
+		return nil, nil
+	}
+	allScrapers["topics"] = mockScraper
+	allScrapers["brokers"] = mockScraper
+	allScrapers["consumers"] = mockScraper
 	r, err := newMetricsReceiver(context.Background(), *c, component.ReceiverCreateParams{}, nil)
 	assert.Nil(t, r)
 	expectedError := fmt.Errorf("no scraper found for key: cpu")
 	if assert.Error(t, err) {
 		assert.Equal(t, expectedError, err)
 	}
-
 }
 
 func TestNewReceiver_invalid_auth_error(t *testing.T) {
