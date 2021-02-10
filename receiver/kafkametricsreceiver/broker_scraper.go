@@ -26,25 +26,25 @@ import (
 
 var newSaramaClient = sarama.NewClient
 
-type brokersScraper struct {
+type brokerScraper struct {
 	client       sarama.Client
 	logger       *zap.Logger
 	saramaConfig *sarama.Config
 	config       Config
 }
 
-func (s *brokersScraper) Name() string {
+func (s *brokerScraper) Name() string {
 	return "brokers"
 }
 
-func (s *brokersScraper) shutdown(context.Context) error {
+func (s *brokerScraper) shutdown(context.Context) error {
 	if !s.client.Closed() {
 		return s.client.Close()
 	}
 	return nil
 }
 
-func (s *brokersScraper) scrape(context.Context) (pdata.MetricSlice, error) {
+func (s *brokerScraper) scrape(context.Context) (pdata.MetricSlice, error) {
 	brokers := s.client.Brokers()
 	metrics := pdata.NewMetricSlice()
 	allMetrics := initializeBrokerMetrics(&metrics)
@@ -57,7 +57,7 @@ func createBrokersScraper(_ context.Context, config Config, saramaConfig *sarama
 	if err != nil {
 		return nil, err
 	}
-	s := brokersScraper{
+	s := brokerScraper{
 		client:       client,
 		logger:       logger,
 		config:       config,

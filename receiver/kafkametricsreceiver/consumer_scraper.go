@@ -25,7 +25,7 @@ import (
 	"go.opentelemetry.io/collector/receiver/scraperhelper"
 )
 
-type consumersScraper struct {
+type consumerScraper struct {
 	client       sarama.Client
 	logger       *zap.Logger
 	groupFilter  *regexp.Regexp
@@ -33,18 +33,18 @@ type consumersScraper struct {
 	clusterAdmin sarama.ClusterAdmin
 }
 
-func (s *consumersScraper) Name() string {
+func (s *consumerScraper) Name() string {
 	return "consumers"
 }
 
-func (s *consumersScraper) shutdown(_ context.Context) error {
+func (s *consumerScraper) shutdown(_ context.Context) error {
 	if !s.client.Closed() {
 		return s.client.Close()
 	}
 	return nil
 }
 
-func (s *consumersScraper) scrape(context.Context) (pdata.MetricSlice, error) {
+func (s *consumerScraper) scrape(context.Context) (pdata.MetricSlice, error) {
 	metrics := pdata.NewMetricSlice()
 	allMetrics := initializeConsumerMetrics(&metrics)
 	cgs, listErr := s.clusterAdmin.ListConsumerGroups()
@@ -151,7 +151,7 @@ func createConsumersScraper(_ context.Context, config Config, saramaConfig *sara
 	if err != nil {
 		return nil, err
 	}
-	s := consumersScraper{
+	s := consumerScraper{
 		client:       client,
 		logger:       logger,
 		groupFilter:  groupFilter,

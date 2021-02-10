@@ -46,12 +46,12 @@ func (s *mockSaramaClient) Brokers() []*sarama.Broker {
 	return s.getBrokers()
 }
 
-func TestShutdown(t *testing.T) {
+func TestBrokerShutdown(t *testing.T) {
 	client := new(mockSaramaClient)
 	client.Mock.
 		On("Close").Return(nil).
 		On("Closed").Return(false)
-	scraper := brokersScraper{
+	scraper := brokerScraper{
 		client:       client,
 		logger:       zap.NewNop(),
 		saramaConfig: nil,
@@ -61,7 +61,7 @@ func TestShutdown(t *testing.T) {
 	client.AssertExpectations(t)
 }
 
-func TestScrape_gets_brokers(t *testing.T) {
+func TestBrokerScrape_gets_brokers(t *testing.T) {
 	client := new(mockSaramaClient)
 	r := sarama.NewBroker("test")
 	testBrokers := make([]*sarama.Broker, 1)
@@ -70,7 +70,7 @@ func TestScrape_gets_brokers(t *testing.T) {
 		return testBrokers
 	}
 	client.Mock.On("Brokers").Return(testBrokers)
-	scraper := brokersScraper{
+	scraper := brokerScraper{
 		client:       client,
 		logger:       zap.NewNop(),
 		saramaConfig: nil,

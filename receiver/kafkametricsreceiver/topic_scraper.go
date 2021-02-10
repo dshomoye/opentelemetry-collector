@@ -26,7 +26,7 @@ import (
 	"go.opentelemetry.io/collector/receiver/scraperhelper"
 )
 
-type topicsScraper struct {
+type topicScraper struct {
 	client       sarama.Client
 	logger       *zap.Logger
 	topicFilter  *regexp.Regexp
@@ -34,11 +34,11 @@ type topicsScraper struct {
 	config       Config
 }
 
-func (s *topicsScraper) Name() string {
+func (s *topicScraper) Name() string {
 	return "topics"
 }
 
-func (s *topicsScraper) start(_ context.Context, _ component.Host) error {
+func (s *topicScraper) start(_ context.Context, _ component.Host) error {
 	if s.client.Closed() {
 		client, err := sarama.NewClient(s.config.Brokers, s.saramaConfig)
 		if err != nil {
@@ -49,14 +49,14 @@ func (s *topicsScraper) start(_ context.Context, _ component.Host) error {
 	return nil
 }
 
-func (s *topicsScraper) shutdown(context.Context) error {
+func (s *topicScraper) shutdown(context.Context) error {
 	if !s.client.Closed() {
 		return s.client.Close()
 	}
 	return nil
 }
 
-func (s *topicsScraper) scrape(context.Context) (pdata.MetricSlice, error) {
+func (s *topicScraper) scrape(context.Context) (pdata.MetricSlice, error) {
 	topics, err := s.client.Topics()
 	metrics := pdata.NewMetricSlice()
 	if err != nil {
@@ -128,7 +128,7 @@ func createTopicsScraper(_ context.Context, config Config, saramaConfig *sarama.
 	if err != nil {
 		return nil, err
 	}
-	s := topicsScraper{
+	s := topicScraper{
 		client:       client,
 		logger:       logger,
 		topicFilter:  topicFilter,
