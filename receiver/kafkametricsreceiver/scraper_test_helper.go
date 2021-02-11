@@ -1,3 +1,17 @@
+// Copyright  The OpenTelemetry Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package kafkametricsreceiver
 
 import (
@@ -11,15 +25,30 @@ const (
 	testGroup          = "test_group"
 	testConsumerClient = "test_consume_client"
 	testBroker         = "test_broker"
+	testReplica        = 2
 )
+
+var newSaramaClient = sarama.NewClient
+var newClusterAdmin = sarama.NewClusterAdmin
+
+func mockNewSaramaClient([]string, *sarama.Config) (sarama.Client, error) {
+	return getMockClient(), nil
+}
+
+func mockNewClusterAdmin([]string, *sarama.Config) (sarama.ClusterAdmin, error) {
+	return getMockClusterAdmin(), nil
+}
 
 type mockSaramaClient struct {
 	mock.Mock
 	sarama.Client
 
-	brokers    func() []*sarama.Broker
-	partitions func(string) ([]int32, error)
-	getOffset  func(string, int32, int64) (int64, error)
+	brokers        func() []*sarama.Broker
+	partitions     func(string) ([]int32, error)
+	getOffset      func(string, int32, int64) (int64, error)
+	topics         func() ([]string, error)
+	replicas       func(string, int32) ([]int32, error)
+	inSyncReplicas func(string, int32) ([]int32, error)
 }
 
 func (s *mockSaramaClient) Closed() bool {
@@ -45,6 +74,18 @@ func (s *mockSaramaClient) GetOffset(arg1 string, arg2 int32, arg3 int64) (int64
 	return s.getOffset(arg1, arg2, arg3)
 }
 
+func (s *mockSaramaClient) Topics() ([]string, error) {
+	return s.topics()
+}
+
+func (s *mockSaramaClient) Replicas(arg1 string, arg2 int32) ([]int32, error) {
+	return s.replicas(arg1, arg2)
+}
+
+func (s *mockSaramaClient) InSyncReplicas(arg1 string, arg2 int32) ([]int32, error) {
+	return s.inSyncReplicas(arg1, arg2)
+}
+
 func getMockClient() *mockSaramaClient {
 	client := new(mockSaramaClient)
 	r := sarama.NewBroker(testBroker)
@@ -61,6 +102,17 @@ func getMockClient() *mockSaramaClient {
 	client.getOffset = func(string, int32, int64) (int64, error) {
 		return 1, nil
 	}
+	testTopicNames := []string{testTopic}
+	client.topics = func() ([]string, error) {
+		return testTopicNames, nil
+	}
+	client.replicas = func(string, int32) ([]int32, error) {
+		return []int32{testReplica}, nil
+	}
+	client.inSyncReplicas = func(string, int32) ([]int32, error) {
+		return []int32{testReplica}, nil
+	}
+
 	return client
 }
 

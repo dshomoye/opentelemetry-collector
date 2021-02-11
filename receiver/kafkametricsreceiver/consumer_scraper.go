@@ -140,14 +140,14 @@ func (s *consumerScraper) scrape(context.Context) (pdata.MetricSlice, error) {
 	return metrics, nil
 }
 
-func createConsumersScraper(_ context.Context, config Config, saramaConfig *sarama.Config, logger *zap.Logger) (scraperhelper.MetricsScraper, error) {
+func createConsumerScraper(_ context.Context, config Config, saramaConfig *sarama.Config, logger *zap.Logger) (scraperhelper.MetricsScraper, error) {
 	groupFilter := regexp.MustCompile(config.GroupMatch)
 	topicFilter := regexp.MustCompile(config.TopicMatch)
-	client, err := sarama.NewClient(config.Brokers, saramaConfig)
+	client, err := newSaramaClient(config.Brokers, saramaConfig)
 	if err != nil {
 		return nil, err
 	}
-	clusterAdmin, err := sarama.NewClusterAdminFromClient(client)
+	clusterAdmin, err := newClusterAdmin(config.Brokers, saramaConfig)
 	if err != nil {
 		return nil, err
 	}

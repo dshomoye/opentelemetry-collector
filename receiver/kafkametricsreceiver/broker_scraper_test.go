@@ -59,3 +59,11 @@ func TestBrokerScraper_gets_brokers(t *testing.T) {
 	m := ms.At(0)
 	assert.Equal(t, m.IntGauge().DataPoints().At(0).Value(), int64(len(testBrokers)))
 }
+
+func TestBrokersScraper_createBrokerScraper(t *testing.T) {
+	sc := sarama.NewConfig()
+	newSaramaClient = mockNewSaramaClient
+	ms, err := createBrokerScraper(context.Background(), Config{}, sc, zap.NewNop())
+	assert.Nil(t, err)
+	assert.NotNil(t, ms)
+}

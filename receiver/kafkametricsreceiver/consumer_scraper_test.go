@@ -16,6 +16,7 @@ package kafkametricsreceiver
 
 import (
 	"context"
+	"github.com/Shopify/sarama"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 	"regexp"
@@ -69,4 +70,13 @@ func TestConsumerScraper_scrape_gets_all_metrics(t *testing.T) {
 	os := ms.At(4)
 	assert.Equal(t, os.Name(), offsetSumName)
 	assert.Equal(t, os.IntGauge().DataPoints().At(0).Value(), int64(1), "offset sum must match test value")
+}
+
+func TestConsumerScraper_createConsumerScraper(t *testing.T) {
+	sc := sarama.NewConfig()
+	newSaramaClient = mockNewSaramaClient
+	newClusterAdmin = mockNewClusterAdmin
+	ms, err := createConsumerScraper(context.Background(), Config{}, sc, zap.NewNop())
+	assert.Nil(t, err)
+	assert.NotNil(t, ms)
 }

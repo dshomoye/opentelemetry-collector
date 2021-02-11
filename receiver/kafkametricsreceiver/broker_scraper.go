@@ -49,8 +49,8 @@ func (s *brokerScraper) scrape(context.Context) (pdata.MetricSlice, error) {
 	return metrics, nil
 }
 
-func createBrokersScraper(_ context.Context, config Config, saramaConfig *sarama.Config, logger *zap.Logger) (scraperhelper.MetricsScraper, error) {
-	client, err := sarama.NewClient(config.Brokers, saramaConfig)
+func createBrokerScraper(_ context.Context, config Config, saramaConfig *sarama.Config, logger *zap.Logger) (scraperhelper.MetricsScraper, error) {
+	client, err := newSaramaClient(config.Brokers, saramaConfig)
 	if err != nil {
 		return nil, err
 	}
