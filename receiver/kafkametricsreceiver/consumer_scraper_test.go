@@ -16,11 +16,12 @@ package kafkametricsreceiver
 
 import (
 	"context"
+	"regexp"
+	"testing"
+
 	"github.com/Shopify/sarama"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
-	"regexp"
-	"testing"
 )
 
 func TestConsumerShutdown(t *testing.T) {

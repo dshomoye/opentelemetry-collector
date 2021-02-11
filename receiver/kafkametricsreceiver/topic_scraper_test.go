@@ -16,19 +16,18 @@ package kafkametricsreceiver
 
 import (
 	"context"
-	"github.com/Shopify/sarama"
-	"go.uber.org/zap"
 	"regexp"
 	"testing"
 
+	"github.com/Shopify/sarama"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
 func TestTopicScraper_Name(t *testing.T) {
 	s := topicScraper{}
 	assert.Equal(t, s.Name(), "topics")
 }
-
 
 func TestBrokersScraper_createTopicScraper(t *testing.T) {
 	sc := sarama.NewConfig()
@@ -55,9 +54,9 @@ func TestTopicScraper_scrape(t *testing.T) {
 	config := createDefaultConfig().(*Config)
 	match := regexp.MustCompile(config.TopicMatch)
 	scraper := topicScraper{
-		client:       client,
-		logger:       zap.NewNop(),
-		topicFilter:  match,
+		client:      client,
+		logger:      zap.NewNop(),
+		topicFilter: match,
 	}
 	ms, err := scraper.scrape(context.Background())
 	assert.Nil(t, err)
@@ -78,4 +77,3 @@ func TestTopicScraper_scrape(t *testing.T) {
 	assert.Equal(t, im.Name(), replicasInSyncName)
 	assert.Equal(t, im.IntGauge().DataPoints().At(0).Value(), int64(1), "replicas in sync must test value")
 }
-

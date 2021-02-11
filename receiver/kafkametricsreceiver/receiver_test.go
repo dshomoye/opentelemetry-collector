@@ -17,16 +17,16 @@ package kafkametricsreceiver
 import (
 	"context"
 	"fmt"
-	"github.com/Shopify/sarama"
-	"go.opentelemetry.io/collector/receiver/scraperhelper"
-	"go.uber.org/zap"
 	"testing"
+
+	"github.com/Shopify/sarama"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter/kafkaexporter"
-
-	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/collector/receiver/scraperhelper"
 )
 
 func TestNewReceiver_invalid_version_err(t *testing.T) {
