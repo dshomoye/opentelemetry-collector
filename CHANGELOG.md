@@ -2,9 +2,34 @@
 
 ## Unreleased
 
+## v0.20.0 Beta
+
+## 🛑 Breaking changes 🛑
+
+- Rename `samplingprocessor/probabilisticsamplerprocessor` to `probabilisticsamplerprocessor` (#2392)
+
+## 💡 Enhancements 💡
+
+- `hostmetrics` receiver: Refactor to use metrics metadata utilities (#2405, #2406, #2421)
+- Add k8s.node semantic conventions (#2425)
+
+## v0.19.0 Beta
+
 ## 🛑 Breaking changes 🛑
 - Remove deprecated `queued_retry` processor
 - Remove deprecated configs from `resource` processor: `type` (set "opencensus.type" key in "attributes.upsert" map instead) and `labels` (use "attributes.upsert" instead).
+
+## 💡 Enhancements 💡
+
+- `hostmetrics` receiver: Refactor load metrics to use generated metrics (#2375)
+- Add uptime to the servicez debug page (#2385)
+- Add new semantic conventions for AWS (#2365)
+
+## 🧰 Bug fixes 🧰
+
+- `jaeger` exporter: Improve connection state logging (#2239)
+- `pdatagen`: Fix slice of values generated code (#2403)
+- `filterset` processor: Avoid returning always nil error in strict filterset (#2399)
 
 ## v0.18.0 Beta
 

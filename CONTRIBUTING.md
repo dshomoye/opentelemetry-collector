@@ -36,7 +36,7 @@ Reporting bugs is an important contribution. Please make sure to include:
 ### Before you start
 
 Please read project contribution
-[guide](https://github.com/open-telemetry/community/blob/master/CONTRIBUTING.md)
+[guide](https://github.com/open-telemetry/community/blob/main/CONTRIBUTING.md)
 for general practices for OpenTelemetry project.
 
 Select a good issue from the links below (ordered by difficulty/complexity):
@@ -63,7 +63,7 @@ Follow the instructions below to create your PR.
 In the interest of keeping this repository clean and manageable, you should
 work from a fork. To create a fork, click the 'Fork' button at the top of the
 repository, then clone the fork locally using `git clone
-git@github.com:USERNAME/opentelemetry-service.git`.
+git@github.com:USERNAME/opentelemetry-collector.git`.
 
 You should also add this repository as an "upstream" repo to your local copy,
 in order to keep it up to date. You can add this as a remote like so:
@@ -74,19 +74,19 @@ Verify that the upstream exists:
 
 `git remote -v`
 
-To update your fork, fetch the upstream repo's branches and commits, then merge your master with upstream's master:
+To update your fork, fetch the upstream repo's branches and commits, then merge your `main` with upstream's `main`:
 
 ```
 git fetch upstream
-git checkout master
-git merge upstream/master
+git checkout main
+git merge upstream/main
 ```
 
 Remember to always work in a branch of your local copy, as you might otherwise
-have to contend with conflicts in master.
+have to contend with conflicts in `main`.
 
 Please also see [GitHub
-workflow](https://github.com/open-telemetry/community/blob/master/CONTRIBUTING.md#github-workflow)
+workflow](https://github.com/open-telemetry/community/blob/main/CONTRIBUTING.md#github-workflow)
 section of general project contributing guide.
 
 ## Required Tools
@@ -110,7 +110,7 @@ Add your fork as an origin:
 
 ```shell
 $ cd $(go env GOPATH)/src/go.opentelemetry.io/collector
-$ git remote add fork git@github.com:YOUR_GITHUB_USERNAME/opentelemetry-service.git
+$ git remote add fork git@github.com:YOUR_GITHUB_USERNAME/opentelemetry-collector.git
 ```
 
 Run tests, fmt and lint:
