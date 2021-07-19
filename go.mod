@@ -27,7 +27,7 @@ require (
 	github.com/google/addlicense v0.0.0-20200622132530-df58acafd6d5
 	github.com/google/go-cmp v0.5.2
 	github.com/google/go-github v17.0.0+incompatible
-	github.com/google/uuid v1.1.2
+	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
 	github.com/grpc-ecosystem/grpc-gateway v1.15.0
 	github.com/hashicorp/go-msgpack v0.5.5 // indirect
